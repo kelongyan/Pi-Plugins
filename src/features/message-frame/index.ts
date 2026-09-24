@@ -15,9 +15,4 @@ export {
   type ThemeLike,
   type ToolStatus,
 } from "./styles.ts";
-export {
-  installMessageFrame,
-  readRuntimeTheme,
-  resolveTheme,
-  type MessageFrameHandle,
-} from "./patch.ts";
+export { installMessageFrame, type MessageFrameHandle } from "./patch.ts";

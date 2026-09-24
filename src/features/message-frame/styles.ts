@@ -5,12 +5,8 @@
  * 绘制层只引用语义 token，实际颜色一律来自当前 Pi 主题，因此换主题即换色，无需改代码。
  */
 
-/** 主题的最小接口（只依赖 fg/bg，便于测试注入假主题）。 */
-export type ThemeLike = {
-  readonly name?: string;
-  fg(token: string, text: string): string;
-  bg?(token: string, text: string): string;
-};
+/** 主题接口统一由 core/theme 提供，这里 re-export 以保持既有引用可用。 */
+export type { ThemeLike } from "../../core/theme.ts";
 
 /** 消息分块类型。 */
 export type MessageKind =

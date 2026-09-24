@@ -22,7 +22,9 @@ import {
   type PiRuntimeCapabilities,
 } from "./src/core/pi-compat.ts";
 import { ResourceStack, TuiOwnership } from "./src/core/session.ts";
-import { installMessageFrame, resolveTheme } from "./src/features/message-frame/index.ts";
+import { resolveTheme } from "./src/core/theme.ts";
+import { InputFrameRuntime } from "./src/features/input-frame/index.ts";
+import { installMessageFrame } from "./src/features/message-frame/index.ts";
 import { cloneSettings, isFeatureActive, type ZxdlSettings } from "./src/settings/schema.ts";
 import { readPersistedSettings } from "./src/settings/store.ts";
 
@@ -36,6 +38,7 @@ export function registerZxdlExtension(pi: ExtensionAPI, deps: ZxdlRuntimeDeps = 
     deps.inspectCapabilities ?? ((): PiRuntimeCapabilities => inspectPiRuntimeCapabilities());
 
   const ownership = new TuiOwnership();
+  const inputFrameRuntime = new InputFrameRuntime();
   let resources = new ResourceStack();
   let settings: ZxdlSettings = readPersistedSettings();
   let capabilities: PiRuntimeCapabilities | undefined;
@@ -80,13 +83,26 @@ export function registerZxdlExtension(pi: ExtensionAPI, deps: ZxdlRuntimeDeps = 
       }
     }
 
-    // P2–P3：思考过程动画、输入框线框在此接入。
+    // ③ 输入框线框（需要 Pi 的 fullscreen TUI 模式）
+    const wantsInputFrame = isFeatureActive(settings, "inputFrame");
+    if (wantsInputFrame && capabilities.inputFrame.supported) {
+      inputFrameRuntime.bindSession(ctx);
+      inputFrameRuntime.configure({ ...settings.inputFrame, enabled: true });
+      console.debug?.("[pi-zxdl] input-frame 已接管输入框");
+    } else {
+      // 未启用或能力不满足：确保不残留接管，并保留用户偏好。
+      inputFrameRuntime.configure({ ...settings.inputFrame, enabled: false });
+      if (wantsInputFrame) {
+        console.debug?.("[pi-zxdl] input-frame: 需要 fullscreen 模式，已跳过（保留用户偏好）");
+      }
+    }
   });
 
   pi.on("session_shutdown", () => {
     // 只有当前 owner 有权释放；子代理的 shutdown 必须无副作用。
     if (!ownership.isOwner()) return;
     try {
+      inputFrameRuntime.dispose();
       resources.dispose();
     } finally {
       ownership.release();

@@ -15,7 +15,8 @@ import { disposeMethodPatch, installMethodPatch, type MethodPatch } from "../../
 import { patchSlot } from "../../core/patch-keys.ts";
 import { PI_MESSAGE_COMPONENTS } from "../../core/pi-compat.ts";
 import { MIN_BOX_WIDTH, renderMessageBox, renderThinkingBox } from "./chrome.ts";
-import { frameLabel, resolveStyleKind, type MessageKind, type ThemeLike, type ToolStatus } from "./styles.ts";
+import { type ThemeLike } from "../../core/theme.ts";
+import { frameLabel, resolveStyleKind, type MessageKind, type ToolStatus } from "./styles.ts";
 
 /** 组件导出名 → 基础消息类型。 */
 const COMPONENT_KIND: Record<string, MessageKind> = {
@@ -28,38 +29,6 @@ const COMPONENT_KIND: Record<string, MessageKind> = {
   ToolExecutionComponent: "toolPending",
   BashExecutionComponent: "bash",
 };
-
-/** Pi 暴露当前主题用的全局 symbol（兼容旧包名）。 */
-const THEME_SYMBOL_KEYS = [
-  Symbol.for("@earendil-works/pi-coding-agent:theme"),
-  Symbol.for("@mariozechner/pi-coding-agent:theme"),
-];
-
-/** 未绑定主题时的恒等回退：原样返回文本，保证渲染永不因缺主题而崩。 */
-const IDENTITY_THEME: ThemeLike = { fg: (_token, text) => text };
-
-/** 读取 Pi 当前主题；拿不到时返回 undefined。 */
-export function readRuntimeTheme(): ThemeLike | undefined {
-  for (const key of THEME_SYMBOL_KEYS) {
-    try {
-      const candidate = (globalThis as unknown as Record<PropertyKey, unknown>)[key] as
-        | { fg?: unknown }
-        | undefined;
-      if (candidate && typeof candidate.fg === "function") return candidate as ThemeLike;
-    } catch {
-      // globalThis 上的取值理论上不会抛；防御一下不影响后续候选。
-    }
-  }
-  return undefined;
-}
-
-/**
- * 取当前主题；拿不到时回退为恒等主题（原样输出文本）。
- * 供装配层注入，避免每个调用点重复处理缺失主题。
- */
-export function resolveTheme(): ThemeLike {
-  return readRuntimeTheme() ?? IDENTITY_THEME;
-}
 
 function asLines(value: unknown): string[] {
   if (Array.isArray(value)) return value.map(String);

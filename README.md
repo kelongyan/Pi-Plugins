@@ -3,14 +3,14 @@
 Pi coding agent 的 TUI 增强扩展。三件事：
 
 1. **消息对话框外框** — 让助手回复、用户消息、工具调用、Bash 执行在视觉上清晰分隔
-2. **思考过程 UI** — 思考时播放动画，结束时给出明确的完成态
-3. **输入框线框** — 输入框固定在底部并带线框，线框内嵌模型名 / thinking 级别 / 上下文进度
+2. **思考过程线框** — 思考内容带独立外框（折叠态紧凑三行，展开态完整内容），**静态无动画**
+3. **输入框线框** — 底部输入框带线框，内嵌模型名 / thinking 级别 / 上下文进度
 
 > 名字取自「扎西德勒」（Tashi Delek）。
 
 ## 当前状态
 
-**P1 已完成** — 消息对话框外框（含思考过程框）已接入。底部输入框线框在 P3。
+**P3 已完成** — 消息外框、思考过程线框、底部输入框线框全部接入。
 
 > **关于思考动画：本项目不做。** 思考块只有静态线框 —— 不引入帧驱动、计时器或多种动画效果。
 > 这是与 alps-pi 的明确差异（它内置 21 种动画）。
@@ -19,8 +19,8 @@ Pi coding agent 的 TUI 增强扩展。三件事：
 |---|---|---|
 | P0 | 项目骨架、补丁注册表、能力探测、配置持久化、生命周期编排 | ✅ 已完成 |
 | P1 | 消息对话框外框（含思考过程框） | ✅ 已完成 |
-| P2 | 思考过程动画 | ❌ 已取消（见下方说明） |
-| P3 | 输入框线框（固定底部 + 指标嵌入） | ⏳ 待开始 |
+| P2 | 思考过程动画 | ❌ 已取消（本项目不做动画） |
+| P3 | 输入框线框（模型 / thinking / 上下文嵌入） | ✅ 已完成 |
 | P4 | 设置面板 + 主题 | ⏳ 待开始 |
 | P5 | 测试补齐 + 渲染基线 | ⏳ 待开始 |
 
@@ -40,7 +40,7 @@ pi install git:https://github.com/<owner>/pi-zxdl
 
 - Pi `>= 0.84.4`
 - Node `>= 22.19.0`
-- 输入框线框功能需要 Pi 的 `TUI mode: fullscreen`（在 `/settings` 中设置）
+- 输入框线框需要 Pi 的 `TUI mode: fullscreen`（在 `/settings` 中设置）
 
 ## 开发
 
@@ -55,6 +55,7 @@ npm test            # node --test tests/**/*.test.ts
 ```
 index.ts                    入口，只做装配
 src/core/
+  theme.ts                  主题读取与安全取色的统一入口
   patch-keys.ts             Symbol 槽位单一来源（跨 reload 稳定）
   patch-registry.ts         补丁槽位的所有权生命周期
   method-patch.ts           可回滚、幂等的 prototype 方法包装
@@ -69,10 +70,15 @@ src/utils/
   width.ts                  宽度安全工具（visibleWidth / padToWidth）
   image-escape.ts           Kitty / iTerm 图片协议行识别
 src/features/
-  message-frame/            P1：消息外框
+  message-frame/            P1：消息外框（唯一使用 patch 的功能）
     chrome.ts                 纯绘制：边框拼装、前景状态跟踪、宽度降级
     styles.ts                 kind → 主题 token 映射与标签
     patch.ts                  组件 render 包装（8 类消息组件）
+  input-frame/              P3：底部输入框线框（无 patch，全走公开 API）
+    frame.ts                  线框绘制 + 标签降级（保护 CURSOR_MARKER）
+    status.ts                 模型名 / thinking / 上下文进度
+    editor.ts                 继承官方 CustomEditor，只覆盖 render
+    runtime.ts                setEditorComponent 挂载 + generation 隔离
 ```
 
 ### P1 覆盖的消息类型
@@ -87,6 +93,20 @@ src/features/
 | 自定义 / 技能 / 压缩 / 分支 | `CUSTOM` / `SKILL` / `COMPACT` / `BRANCH` | 见 styles.ts |
 
 思考过程有两种呈现：**折叠时**用紧凑三行框（只有一行摘要），**展开时**用完整内容框。两者都是**静态**的，不含任何动画。
+
+### P3 输入框线框
+
+线框顶部左侧显示 `模型名 · thinking 级别`，右侧显示上下文进度（`━━━━────── 21% 200k`）。
+取不到的数据段**直接隐藏，不留空占位**；窄终端按「先裁右标签 → 再裁左标签 → 整体省略」降级，保证外框永不破。
+
+实现要点：
+
+- 继承官方 `CustomEditor`，**只覆盖 `render`** —— 输入、补全、历史、粘贴等语义全部保留父类行为
+- 内容行截断时**保护 `CURSOR_MARKER`**，否则 IME 候选窗与光标会错位
+- 弹出内容（autocomplete / select-list）保持在线框之外
+- **完全不用 patch**，只走 `ctx.ui.setEditorComponent` 这一个公开 API
+- 切会话递增 generation，过期 factory 返回 `undefined` 主动放弃接管
+- 卸载时只在 editor 仍由本插件持有时才清除，绝不覆盖第三方
 
 ### 三条设计原则
 

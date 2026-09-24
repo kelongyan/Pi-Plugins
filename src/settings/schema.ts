@@ -33,8 +33,6 @@ export type InputFrameSettings = {
   showThinking: boolean;
   /** 顶边右侧是否嵌入上下文进度。 */
   showContext: boolean;
-  /** 底边是否嵌入 token / 耗时指标。 */
-  showMetrics: boolean;
 };
 
 export type ZxdlSettings = {
@@ -54,7 +52,6 @@ export const DEFAULT_SETTINGS: ZxdlSettings = {
     showModel: true,
     showThinking: true,
     showContext: true,
-    showMetrics: true,
   },
 };
 
@@ -90,7 +87,6 @@ export function normalizeSettings(value: unknown): ZxdlSettings {
       showModel: pickBool(input.showModel, DEFAULT_SETTINGS.inputFrame.showModel),
       showThinking: pickBool(input.showThinking, DEFAULT_SETTINGS.inputFrame.showThinking),
       showContext: pickBool(input.showContext, DEFAULT_SETTINGS.inputFrame.showContext),
-      showMetrics: pickBool(input.showMetrics, DEFAULT_SETTINGS.inputFrame.showMetrics),
     },
   };
 }

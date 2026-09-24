@@ -20,14 +20,14 @@ test("类型错误的字段被钳制回默认值", () => {
     enabled: "yes",
     messageFrame: { enabled: 1, assistantFrame: false },
     thinking: { enabled: "nope" },
-    inputFrame: { showMetrics: "true" },
+    inputFrame: { showModel: "true" },
   });
 
   assert.equal(result.enabled, DEFAULT_SETTINGS.enabled);
   assert.equal(result.messageFrame.enabled, DEFAULT_SETTINGS.messageFrame.enabled);
   assert.equal(result.messageFrame.assistantFrame, false, "合法布尔值应被保留");
   assert.equal(result.thinking.enabled, DEFAULT_SETTINGS.thinking.enabled);
-  assert.equal(result.inputFrame.showMetrics, DEFAULT_SETTINGS.inputFrame.showMetrics);
+  assert.equal(result.inputFrame.showModel, DEFAULT_SETTINGS.inputFrame.showModel);
 });
 
 test("thinking 只保留 enabled 开关，不残留任何动画字段", () => {
@@ -51,7 +51,6 @@ test("完整合法输入被原样保留", () => {
       showModel: false,
       showThinking: false,
       showContext: true,
-      showMetrics: false,
     },
   };
 
