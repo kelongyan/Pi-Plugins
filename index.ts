@@ -22,7 +22,8 @@ import {
   type PiRuntimeCapabilities,
 } from "./src/core/pi-compat.ts";
 import { ResourceStack, TuiOwnership } from "./src/core/session.ts";
-import { cloneSettings, type ZxdlSettings } from "./src/settings/schema.ts";
+import { installMessageFrame, resolveTheme } from "./src/features/message-frame/index.ts";
+import { cloneSettings, isFeatureActive, type ZxdlSettings } from "./src/settings/schema.ts";
 import { readPersistedSettings } from "./src/settings/store.ts";
 
 export type ZxdlRuntimeDeps = {
@@ -61,8 +62,25 @@ export function registerZxdlExtension(pi: ExtensionAPI, deps: ZxdlRuntimeDeps = 
       console.debug?.(`[pi-zxdl] ${failure}`);
     }
 
-    // P1–P3：在此按 capabilities 与 settings 安装各功能的补丁，
-    // 并通过 resources.add(...) 登记，由 session_shutdown 统一释放。
+    // ① 消息对话框外框（含思考过程框）
+    if (isFeatureActive(settings, "messageFrame")) {
+      if (capabilities.messageFrame.supported) {
+        const frame = installMessageFrame(resolveTheme, {
+          thinkingFrame: settings.thinking.enabled,
+        });
+        if (frame) {
+          resources.add(frame);
+          console.debug?.(`[pi-zxdl] message-frame 已接管 ${frame.patchCount} 个组件：${frame.targets.join(", ")}`);
+        } else {
+          console.debug?.("[pi-zxdl] message-frame: 没有组件被成功包装，已跳过");
+        }
+      } else {
+        // fail-closed：能力不满足只关闭功能，不动用户偏好。
+        console.debug?.("[pi-zxdl] message-frame: 宿主能力不满足，已跳过（保留用户偏好）");
+      }
+    }
+
+    // P2–P3：思考过程动画、输入框线框在此接入。
   });
 
   pi.on("session_shutdown", () => {

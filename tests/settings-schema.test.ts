@@ -19,34 +19,33 @@ test("类型错误的字段被钳制回默认值", () => {
   const result = normalizeSettings({
     enabled: "yes",
     messageFrame: { enabled: 1, assistantFrame: false },
-    thinking: { fps: 999 },
+    thinking: { enabled: "nope" },
     inputFrame: { showMetrics: "true" },
   });
 
   assert.equal(result.enabled, DEFAULT_SETTINGS.enabled);
   assert.equal(result.messageFrame.enabled, DEFAULT_SETTINGS.messageFrame.enabled);
   assert.equal(result.messageFrame.assistantFrame, false, "合法布尔值应被保留");
-  assert.equal(result.thinking.fps, DEFAULT_SETTINGS.thinking.fps);
+  assert.equal(result.thinking.enabled, DEFAULT_SETTINGS.thinking.enabled);
   assert.equal(result.inputFrame.showMetrics, DEFAULT_SETTINGS.inputFrame.showMetrics);
 });
 
-test("fps 只接受白名单取值", () => {
-  assert.equal(normalizeSettings({ thinking: { fps: 24 } }).thinking.fps, 24);
-  assert.equal(normalizeSettings({ thinking: { fps: 99 } }).thinking.fps, DEFAULT_SETTINGS.thinking.fps);
-  assert.equal(normalizeSettings({ thinking: { fps: "16" } }).thinking.fps, DEFAULT_SETTINGS.thinking.fps);
-});
+test("thinking 只保留 enabled 开关，不残留任何动画字段", () => {
+  const normalized = normalizeSettings({ thinking: { enabled: false, fps: 30, animation: "matrix" } });
 
-test("animation 空白字符串归一为 null", () => {
-  assert.equal(normalizeSettings({ thinking: { animation: "   " } }).thinking.animation, null);
-  assert.equal(normalizeSettings({ thinking: { animation: "" } }).thinking.animation, null);
-  assert.equal(normalizeSettings({ thinking: { animation: "matrix" } }).thinking.animation, "matrix");
+  assert.equal(normalized.thinking.enabled, false);
+  assert.deepEqual(
+    Object.keys(normalized.thinking),
+    ["enabled"],
+    "本项目不做思考动画，旧配置里的 fps / animation 必须被丢弃",
+  );
 });
 
 test("完整合法输入被原样保留", () => {
   const input = {
     enabled: false,
     messageFrame: { enabled: false, assistantFrame: false, userFrame: true },
-    thinking: { enabled: true, fps: 30, animation: "aurora" },
+    thinking: { enabled: true },
     inputFrame: {
       enabled: true,
       showModel: false,

@@ -14,15 +14,15 @@ export type MessageFrameSettings = {
   userFrame: boolean;
 };
 
-/** 可选的动画帧率。 */
-export const FPS_OPTIONS = [8, 12, 16, 24, 30] as const;
-export type FpsOption = (typeof FPS_OPTIONS)[number];
-
 export type ThinkingSettings = {
+  /**
+   * 思考过程是否使用独立的 THINK 外框。
+   * 关闭后思考内容退回普通 ASSISTANT 外框。
+   *
+   * ⚠️ 本项目**刻意不做思考动画** —— 思考块只有静态线框，
+   * 不引入帧驱动、计时器或多种动画效果。这是与 alps-pi 的明确差异。
+   */
   enabled: boolean;
-  fps: FpsOption;
-  /** 动画名称；null 表示随机挑选。 */
-  animation: string | null;
 };
 
 export type InputFrameSettings = {
@@ -48,7 +48,7 @@ export type ZxdlSettings = {
 export const DEFAULT_SETTINGS: ZxdlSettings = {
   enabled: true,
   messageFrame: { enabled: true, assistantFrame: true, userFrame: true },
-  thinking: { enabled: true, fps: 16, animation: null },
+  thinking: { enabled: true },
   inputFrame: {
     enabled: false,
     showModel: true,
@@ -68,19 +68,6 @@ function pickBool(value: unknown, fallback: boolean): boolean {
   return typeof value === "boolean" ? value : fallback;
 }
 
-function pickFps(value: unknown, fallback: FpsOption): FpsOption {
-  return typeof value === "number" && (FPS_OPTIONS as readonly number[]).includes(value)
-    ? (value as FpsOption)
-    : fallback;
-}
-
-function pickAnimationName(value: unknown, fallback: string | null): string | null {
-  if (value === null || value === undefined) return null;
-  if (typeof value !== "string") return fallback;
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
-
 /** 把任意输入规范化为完整、类型正确的配置。 */
 export function normalizeSettings(value: unknown): ZxdlSettings {
   const root = asRecord(value);
@@ -97,8 +84,6 @@ export function normalizeSettings(value: unknown): ZxdlSettings {
     },
     thinking: {
       enabled: pickBool(thinking.enabled, DEFAULT_SETTINGS.thinking.enabled),
-      fps: pickFps(thinking.fps, DEFAULT_SETTINGS.thinking.fps),
-      animation: pickAnimationName(thinking.animation, DEFAULT_SETTINGS.thinking.animation),
     },
     inputFrame: {
       enabled: pickBool(input.enabled, DEFAULT_SETTINGS.inputFrame.enabled),

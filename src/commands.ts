@@ -44,7 +44,7 @@ function formatStatus(status: ZxdlStatus): string {
       `（assistant ${settings.messageFrame.assistantFrame ? "加框" : "不加框"}` +
       ` / user ${settings.messageFrame.userFrame ? "加框" : "不加框"}）`,
   );
-  lines.push(`② 思考过程：${onOff(settings.thinking.enabled)}（${settings.thinking.fps} fps）`);
+  lines.push(`② 思考过程线框：${onOff(settings.thinking.enabled)}（静态线框，无动画）`);
   lines.push(`③ 输入框线框：${onOff(settings.inputFrame.enabled)}`);
 
   if (capabilities) {

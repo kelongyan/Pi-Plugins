@@ -10,14 +10,17 @@ Pi coding agent 的 TUI 增强扩展。三件事：
 
 ## 当前状态
 
-**P0（骨架阶段）已完成** — 基础设施就绪，UI 功能尚未接入。
+**P1 已完成** — 消息对话框外框（含思考过程框）已接入。底部输入框线框在 P3。
+
+> **关于思考动画：本项目不做。** 思考块只有静态线框 —— 不引入帧驱动、计时器或多种动画效果。
+> 这是与 alps-pi 的明确差异（它内置 21 种动画）。
 
 | 阶段 | 内容 | 状态 |
 |---|---|---|
 | P0 | 项目骨架、补丁注册表、能力探测、配置持久化、生命周期编排 | ✅ 已完成 |
-| P1 | 消息对话框外框 | ⏳ 待开始 |
-| P2 | 思考过程 UI | ⏳ 待开始 |
-| P3 | 输入框线框 | ⏳ 待开始 |
+| P1 | 消息对话框外框（含思考过程框） | ✅ 已完成 |
+| P2 | 思考过程动画 | ❌ 已取消（见下方说明） |
+| P3 | 输入框线框（固定底部 + 指标嵌入） | ⏳ 待开始 |
 | P4 | 设置面板 + 主题 | ⏳ 待开始 |
 | P5 | 测试补齐 + 渲染基线 | ⏳ 待开始 |
 
@@ -61,8 +64,29 @@ src/settings/
   schema.ts                 配置结构、默认值、防御式规范化
   store.ts                  原子写 + 只动自身命名空间
 src/commands.ts             /zxdl 状态命令
-src/features/               P1–P3 的 UI 功能模块（待接入）
+src/utils/
+  terminal-sanitizer.ts     剥离非 SGR 控制序列（安全边界）
+  width.ts                  宽度安全工具（visibleWidth / padToWidth）
+  image-escape.ts           Kitty / iTerm 图片协议行识别
+src/features/
+  message-frame/            P1：消息外框
+    chrome.ts                 纯绘制：边框拼装、前景状态跟踪、宽度降级
+    styles.ts                 kind → 主题 token 映射与标签
+    patch.ts                  组件 render 包装（8 类消息组件）
 ```
+
+### P1 覆盖的消息类型
+
+| 类型 | 标签 | 边框 token |
+|---|---|---|
+| 用户消息 | `USER` | borderAccent |
+| 助手回复 | `ASSISTANT` | borderMuted |
+| 思考过程 | `THINK` | borderMuted |
+| 工具调用 | `TOOL <名字> ✓/✗` | success / error / borderAccent |
+| Bash 执行 | `BASH` | success / error / borderAccent |
+| 自定义 / 技能 / 压缩 / 分支 | `CUSTOM` / `SKILL` / `COMPACT` / `BRANCH` | 见 styles.ts |
+
+思考过程有两种呈现：**折叠时**用紧凑三行框（只有一行摘要），**展开时**用完整内容框。两者都是**静态**的，不含任何动画。
 
 ### 三条设计原则
 

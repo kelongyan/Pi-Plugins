@@ -43,6 +43,14 @@ export const MARKER_KEYS = {
 } as const;
 
 /**
+ * 按名称派生补丁槽位。
+ *
+ * 用于「同一功能需要包装多个目标」的场景：每个目标一个独立槽位，
+ * 由 PatchRegistry 分别管理所有权，避免单个目标失败拖垮整批。
+ */
+export const patchSlot = (name: string): symbol => key(`patch.${name}`);
+
+/**
  * 包装器元数据版本。每次修改包装语义时递增，
  * 使热重载后旧 wrapper 被识别为过期并重新包装。
  */

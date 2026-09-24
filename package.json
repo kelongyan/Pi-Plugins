@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "type": "module",
   "private": true,
-  "description": "Pi coding agent TUI enhancement: message frames, thinking animations, and a framed input editor.",
+  "description": "Pi coding agent TUI enhancement: message frames, thinking frames, and a framed input editor.",
   "license": "MIT",
   "keywords": [
     "pi-package",
@@ -34,7 +34,7 @@
   },
   "devDependencies": {
     "@earendil-works/pi-coding-agent": "^0.84.4",
-    "@earendil-works/pi-tui": "^0.84.4",
+    "@earendil-works/pi-tui": "^0.87.1",
     "@types/node": "^22.15.0",
     "typescript": "^5.9.3"
   },
