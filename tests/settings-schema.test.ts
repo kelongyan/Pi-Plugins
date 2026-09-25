@@ -50,6 +50,8 @@ test("完整合法输入被原样保留", () => {
       enabled: true,
       showModel: false,
       showThinking: false,
+      showPath: false,
+      showGit: false,
       showContext: true,
     },
   };

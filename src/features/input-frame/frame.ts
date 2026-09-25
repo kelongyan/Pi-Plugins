@@ -4,7 +4,7 @@
  * 与消息外框的关键差异：
  * - 内容来自 Pi 的 editor 渲染输出，其中可能含 CURSOR_MARKER，
  *   必须原样保留其位置，否则 IME 候选窗与光标会错位
- * - 左右两侧都可以挂状态标签
+ * - 顶边框承载状态段：多个段拼成一行，宽度不足时**整段丢弃**（不截断段内文字）
  *
  * 算法思路参考 alps-pi `src/features/bottom-input/frame.ts`（MIT, MrCKR），此处为独立实现。
  */
@@ -13,27 +13,20 @@ import { CURSOR_MARKER, truncateToWidth, visibleWidth } from "@earendil-works/pi
 import type { ThemeLike } from "../../core/theme.ts";
 import { sanitizeTerminalText } from "../../utils/terminal-sanitizer.ts";
 import { padToWidth, safeWidth } from "../../utils/width.ts";
+import { composeSegments, type FrameSegment } from "./segments.ts";
 
 /** 低于该宽度时不画框，回退原始 editor 输出。 */
 export const MIN_FRAME_WIDTH = 8;
 
-/** 左侧标签最多占内宽的比例。 */
-const LEFT_LABEL_BUDGET_RATIO = 0.45;
-/** 降级循环上限，防止极端输入下打转。 */
-const DEGRADE_GUARD = 6;
 /** 净化时用于临时占位，保证 CURSOR_MARKER 不被当作控制字符剥掉。 */
 const CURSOR_PLACEHOLDER = "\uE000ZXDL_CURSOR\uE000";
 
 const SIDE = "│";
 const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 
+/** 顶边上的状态段，按优先级排序（越靠前越优先保留）。 */
 export type EditorFrameStatus = {
-  /** 左上：模型名。 */
-  model?: string;
-  /** 左上：thinking 级别（已着色）。 */
-  thinking?: string;
-  /** 右上：上下文进度（已着色）。 */
-  context?: string;
+  segments: readonly FrameSegment[];
 };
 
 export type RenderEditorFrameInput = {
@@ -58,83 +51,45 @@ export function renderEditorFrame(input: RenderEditorFrameInput): string[] {
 }
 
 function buildTopBorder(width: number, theme: ThemeLike, status: EditorFrameStatus): string {
-  const left = joinSegments([status.model, status.thinking], theme.fg("borderMuted", " · "));
-  return buildBorderLine({
-    width,
-    theme,
-    leftCorner: "╭",
-    rightCorner: "╮",
-    leftLabel: left,
-    rightLabel: status.context ?? "",
-  });
+  return buildSegmentedBorder(width, theme, "╭", "╮", status.segments);
 }
 
 function buildBottomBorder(width: number, theme: ThemeLike): string {
-  return buildBorderLine({ width, theme, leftCorner: "╰", rightCorner: "╯" });
+  return buildSegmentedBorder(width, theme, "╰", "╯", []);
 }
-
-type BorderLineInput = {
-  width: number;
-  theme: ThemeLike;
-  leftCorner: string;
-  rightCorner: string;
-  leftLabel?: string;
-  rightLabel?: string;
-};
 
 /**
  * 拼装一条边框线，并保证宽度永远闭合。
  *
- * 降级顺序：裁右标签 → 裁左标签 → 整体省略标签。
+ * 有状态段时形态为 `╭─ 段 · 段 ───…───╮`；宽度不足时段从尾部**整段丢弃**
+ * （不截断段内文字），保证边框始终闭合。
  */
-function buildBorderLine(input: BorderLineInput): string {
-  const { width, theme, leftCorner, rightCorner } = input;
-  const total = Math.max(2, width);
+function buildSegmentedBorder(
+  width: number,
+  theme: ThemeLike,
+  leftCorner: string,
+  rightCorner: string,
+  segments: readonly FrameSegment[],
+): string {
+  const total = Math.max(2, Math.floor(width) || 0);
   const innerBudget = Math.max(0, total - 2);
 
-  let leftLabel = fitLabel(
-    input.leftLabel ?? "",
-    Math.max(0, Math.floor(innerBudget * LEFT_LABEL_BUDGET_RATIO) - 2),
-  );
-  let rightLabel = fitLabel(
-    input.rightLabel ?? "",
-    Math.max(0, innerBudget - visibleWidth(padded(leftLabel)) - 2),
-  );
+  // 有段时的固定开销：左角 + 起始横线 + 内容两侧空格 + 右角 = 5
+  const composed: { text: string; width: number } =
+    segments.length > 0
+      ? composeSegments(segments, Math.max(0, total - 5))
+      : { text: "", width: 0 };
 
-  for (
-    let guard = 0;
-    guard < DEGRADE_GUARD &&
-    visibleWidth(padded(leftLabel)) + visibleWidth(padded(rightLabel)) > innerBudget;
-    guard += 1
-  ) {
-    const overflow = visibleWidth(padded(leftLabel)) + visibleWidth(padded(rightLabel)) - innerBudget;
-    if (rightLabel) {
-      rightLabel = fitLabel(rightLabel, Math.max(0, visibleWidth(rightLabel) - overflow));
-    } else if (leftLabel) {
-      leftLabel = fitLabel(leftLabel, Math.max(0, visibleWidth(leftLabel) - overflow));
-    }
+  if (composed.width === 0) {
+    return theme.fg("borderMuted", `${leftCorner}${"─".repeat(innerBudget)}${rightCorner}`);
   }
 
-  if (visibleWidth(padded(leftLabel)) + visibleWidth(padded(rightLabel)) > innerBudget) rightLabel = "";
-  if (visibleWidth(padded(leftLabel)) + visibleWidth(padded(rightLabel)) > innerBudget) leftLabel = "";
-
-  const dashCount = Math.max(
-    0,
-    innerBudget - visibleWidth(padded(leftLabel)) - visibleWidth(padded(rightLabel)),
-  );
-
+  const dashCount = Math.max(0, total - composed.width - 5);
   return (
-    theme.fg("borderMuted", leftCorner) +
-    padded(leftLabel) +
-    theme.fg("borderMuted", "─".repeat(dashCount)) +
-    padded(rightLabel) +
-    theme.fg("borderMuted", rightCorner)
+    theme.fg("borderMuted", `${leftCorner}─ `) +
+    composed.text +
+    theme.fg("borderMuted", ` ${"─".repeat(dashCount)}${rightCorner}`)
   );
-}
-
-/** 标签两侧各留一个空格。 */
-function padded(label: string): string {
-  return label ? ` ${label} ` : "";
 }
 
 /** 内容行：`│ 编辑器内容 │`，光标标记必须原样保留。 */
@@ -144,17 +99,6 @@ function renderContentLine(line: string, width: number, theme: ThemeLike): strin
   const clipped = closeOpenAnsi(truncateKeepingCursor(safe, innerWidth));
   const filled = padToWidth(clipped, innerWidth);
   return theme.fg("borderMuted", SIDE) + " " + filled + " " + theme.fg("borderMuted", SIDE);
-}
-
-/** 按标签可用宽度截断；截断前先去掉 ANSI 以免破坏着色状态。 */
-function fitLabel(label: string, maxWidth: number): string {
-  if (!label || maxWidth <= 0) return "";
-  if (visibleWidth(label) <= maxWidth) return label;
-  return truncateToWidth(stripAnsi(label), maxWidth, "…", false);
-}
-
-function joinSegments(segments: Array<string | undefined>, separator: string): string {
-  return segments.filter((segment): segment is string => Boolean(segment)).join(separator);
 }
 
 /** 净化 editor 行，但把光标标记保护起来（它本身是控制序列，会被净化掉）。 */

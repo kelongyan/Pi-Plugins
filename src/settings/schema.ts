@@ -27,11 +27,15 @@ export type ThinkingSettings = {
 
 export type InputFrameSettings = {
   enabled: boolean;
-  /** 顶边左侧是否嵌入模型名。 */
+  /** 顶边是否显示模型名。 */
   showModel: boolean;
-  /** 顶边左侧是否嵌入 thinking 级别。 */
+  /** 顶边是否显示 thinking 级别。 */
   showThinking: boolean;
-  /** 顶边右侧是否嵌入上下文进度。 */
+  /** 顶边是否显示当前目录（家目录缩写，过长保留尾部两级）。 */
+  showPath: boolean;
+  /** 顶边是否显示 git 分支。 */
+  showGit: boolean;
+  /** 顶边是否显示上下文进度。 */
   showContext: boolean;
 };
 
@@ -51,6 +55,8 @@ export const DEFAULT_SETTINGS: ZxdlSettings = {
     enabled: false,
     showModel: true,
     showThinking: true,
+    showPath: true,
+    showGit: true,
     showContext: true,
   },
 };
@@ -86,6 +92,8 @@ export function normalizeSettings(value: unknown): ZxdlSettings {
       enabled: pickBool(input.enabled, DEFAULT_SETTINGS.inputFrame.enabled),
       showModel: pickBool(input.showModel, DEFAULT_SETTINGS.inputFrame.showModel),
       showThinking: pickBool(input.showThinking, DEFAULT_SETTINGS.inputFrame.showThinking),
+      showPath: pickBool(input.showPath, DEFAULT_SETTINGS.inputFrame.showPath),
+      showGit: pickBool(input.showGit, DEFAULT_SETTINGS.inputFrame.showGit),
       showContext: pickBool(input.showContext, DEFAULT_SETTINGS.inputFrame.showContext),
     },
   };

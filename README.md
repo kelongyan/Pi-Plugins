@@ -75,8 +75,10 @@ src/features/
     styles.ts                 kind → 主题 token 映射与标签
     patch.ts                  组件 render 包装（8 类消息组件）
   input-frame/              P3：底部输入框线框（无 patch，全走公开 API）
-    frame.ts                  线框绘制 + 标签降级（保护 CURSOR_MARKER）
-    status.ts                 模型名 / thinking / 上下文进度
+    frame.ts                  线框绘制 + 状态段降级（保护 CURSOR_MARKER）
+    segments.ts               状态段组装（宽度不足时整段丢弃）
+    status.ts                 模型名 / thinking / 路径 / git / 上下文进度
+    git-status.ts             git 分支的同步读取 + 后台刷新
     editor.ts                 继承官方 CustomEditor，只覆盖 render
     runtime.ts                setEditorComponent 挂载 + generation 隔离
 ```
@@ -96,8 +98,14 @@ src/features/
 
 ### P3 输入框线框
 
-线框顶部左侧显示 `模型名 · thinking 级别`，右侧显示上下文进度（`━━━━────── 21% 200k`）。
-取不到的数据段**直接隐藏，不留空占位**；窄终端按「先裁右标签 → 再裁左标签 → 整体省略」降级，保证外框永不破。
+线框顶边把状态段并排显示在同一行：
+
+    ╭─ claude-sonnet · high · ~/proj · main ━━━━━ 21% 200k ─╮
+    │ > 输入                                                  │
+    ╰─────────────────────────────────────────────────────────╯
+
+段顺序即优先级：`模型名 · thinking · 路径 · git · 上下文`。
+取不到的数据段**直接跳过，不留空占位**；宽度不足时从末尾**整段丢弃**（不把段截成一半），保证外框永不破。
 
 实现要点：
 
@@ -107,6 +115,8 @@ src/features/
 - **完全不用 patch**，只走 `ctx.ui.setEditorComponent` 这一个公开 API
 - 切会话递增 generation，过期 factory 返回 `undefined` 主动放弃接管
 - 卸载时只在 editor 仍由本插件持有时才清除，绝不覆盖第三方
+- 状态段由 `status.ts` 产出、`segments.ts` 组装降级；git 数据由 `git-status.ts` 异步预取，渲染时只读缓存
+- git 命令超时 300ms 即 kill，失败保留旧值（避免闪烁），并带 `GIT_OPTIONAL_LOCKS=0` 不抢交互式 git 的锁
 
 ### 三条设计原则
 
