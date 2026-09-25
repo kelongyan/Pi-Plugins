@@ -10,7 +10,7 @@ Pi coding agent 的 TUI 增强扩展。三件事：
 
 ## 当前状态
 
-**P4 已完成** — 线框全部接入，并提供了 `/zxdl` 设置面板（改动即时生效、自动持久化）。
+**P5 已完成** — 线框、设置面板、自带 Eva 主题、渲染基线全部就绪（尚未发布到 npm）。
 
 > **关于思考动画：本项目不做。** 思考块只有静态线框 —— 不引入帧驱动、计时器或多种动画效果。
 > 这是与 alps-pi 的明确差异（它内置 21 种动画）。
@@ -22,7 +22,7 @@ Pi coding agent 的 TUI 增强扩展。三件事：
 | P2 | 思考过程动画 | ❌ 已取消（本项目不做动画） |
 | P3 | 输入框线框（模型 / thinking / 上下文嵌入） | ✅ 已完成 |
 | P4 | 设置面板（overlay）+ 自带 Eva 主题 | ✅ 已完成 |
-| P5 | 测试补齐 + 渲染基线 | ⏳ 待开始 |
+| P5 | 测试补齐 + 渲染基线 + 发布说明 | ✅ 已完成 |
 
 ## 安装
 
@@ -62,9 +62,23 @@ pi install git:https://github.com/<owner>/pi-zxdl
 
 ```bash
 npm install
-npm run typecheck   # tsc --noEmit
-npm test            # node --test tests/**/*.test.ts
+npm run typecheck     # tsc --noEmit
+npm test              # 单元测试
+npm run docs:baseline # 重新生成渲染视觉回归基线
 ```
+
+渲染基线在 `docs/render-baseline.md`：由固定输入渲染而成。改动渲染逻辑后重跑脚本，`git diff` 就是视觉变化。
+
+## 发布
+
+当前**仅供本地安装**（`pi install <本地路径>`），**尚未发布到 npm**。
+
+发布前需要：
+
+1. 去掉 `package.json` 里的 `"private": true`
+2. 递增 `version`
+3. `npm run typecheck && npm test` 全绿
+4. `npm publish --access public`
 
 ## 架构
 

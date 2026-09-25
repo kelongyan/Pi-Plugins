@@ -70,7 +70,13 @@ export function frameStyle(kind: MessageKind): FrameStyle {
 /** 顶边框上的标签文本。状态符号只加在 TOOL 上，BASH 保持纯标签。 */
 export function frameLabel(kind: MessageKind, toolName?: string, status?: ToolStatus): string {
   const tool = toolName ? ` ${toolName}` : "";
-  const mark = status === "success" ? " ✓" : status === "error" ? " ✗" : "";
+  // 状态符号优先取显式 status；未提供时从 kind 推断，方便直接按 kind 渲染的场景。
+  const mark =
+    status === "success" || kind === "toolSuccess"
+      ? " ✓"
+      : status === "error" || kind === "toolError"
+        ? " ✗"
+        : "";
   switch (kind) {
     case "user":
       return "USER";
