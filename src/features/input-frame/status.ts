@@ -7,12 +7,9 @@
  * 说明：这里只做静态文本，不做任何动画或彩虹效果。
  */
 
-import { homedir } from "node:os";
 import type { ThemeLike } from "../../core/theme.ts";
 import { safeFg } from "../../core/theme.ts";
 import type { EditorFrameStatus } from "./frame.ts";
-import { readGitBranch } from "./git-status.ts";
-import type { FrameSegment } from "./segments.ts";
 
 /** 上下文进度条的总宽（列）。 */
 export const CONTEXT_BAR_WIDTH = 10;
@@ -22,8 +19,6 @@ const CONTEXT_ERROR_PERCENT = 90;
 export type InputFrameSettingsLike = {
   showModel: boolean;
   showThinking: boolean;
-  showPath: boolean;
-  showGit: boolean;
   showContext: boolean;
 };
 
@@ -33,67 +28,27 @@ export type FrameStatusInput = {
   settings: InputFrameSettingsLike;
 };
 
-/** 组装线框顶边要展示的状态段。取不到的段直接跳过，不留空占位。 */
+/** 组装线框顶部要展示的状态段。取不到的段直接隐藏，不留空占位。 */
 export function buildFrameStatus(input: FrameStatusInput): EditorFrameStatus {
   const { ctx, theme, settings } = input;
-  const segments: FrameSegment[] = [];
+  const status: EditorFrameStatus = {};
 
-  // 顺序即优先级：宽度不足时从末尾开始丢弃。
   if (settings.showModel) {
     const name = readModelName(ctx);
-    if (name) segments.push({ id: "model", text: safeFg(theme, "accent", name) });
+    if (name) status.model = safeFg(theme, "accent", name);
   }
 
   if (settings.showThinking) {
     const level = readThinkingLevel(ctx);
-    if (level) segments.push({ id: "thinking", text: styleThinkingLevel(theme, level) });
-  }
-
-  if (settings.showPath) {
-    const cwd = readCwd(ctx);
-    const path = cwd ? shortenPath(cwd) : undefined;
-    if (path) segments.push({ id: "path", text: safeFg(theme, "borderMuted", path, "muted") });
-  }
-
-  if (settings.showGit) {
-    const branch = readGitBranch(readCwd(ctx));
-    if (branch) segments.push({ id: "git", text: safeFg(theme, "success", branch, "muted") });
+    if (level) status.thinking = styleThinkingLevel(theme, level);
   }
 
   if (settings.showContext) {
     const context = renderContextSegment(ctx, theme);
-    if (context) segments.push({ id: "context", text: context });
+    if (context) status.context = context;
   }
 
-  return { segments };
-}
-
-/** 读取当前工作目录（官方 ExtensionContext 提供 cwd）。 */
-export function readCwd(ctx: unknown): string | undefined {
-  try {
-    const cwd = (ctx as { cwd?: unknown } | undefined)?.cwd;
-    return typeof cwd === "string" && cwd.length > 0 ? cwd : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-/**
- * 把路径压缩成适合窄空间的短形式：
- * 家目录缩写为 `~`，过长时只保留尾部两级。
- */
-export function shortenPath(cwd: string, maxLength = 24): string {
-  let text = cwd.replace(/\\/g, "/");
-  const home = (process.env.HOME || process.env.USERPROFILE || homedir() || "").replace(/\\/g, "/");
-
-  if (home && text.startsWith(home)) {
-    text = `~${text.slice(home.length)}`;
-  }
-  if (text.length <= maxLength) return text;
-
-  const parts = text.split("/").filter((part) => part.length > 0);
-  if (parts.length <= 2) return text;
-  return `…/${parts.slice(-2).join("/")}`;
+  return status;
 }
 
 /** 读取模型名，并压缩成短名（去掉 provider 前缀）。 */

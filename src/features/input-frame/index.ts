@@ -14,21 +14,11 @@ export {
   buildFrameStatus,
   formatTokens,
   readContextUsage,
-  readCwd,
   readModelName,
   readThinkingLevel,
   shortenModelName,
-  shortenPath,
   type ContextUsage,
   type InputFrameSettingsLike,
 } from "./status.ts";
 export { createFramedEditor, isNativeEditorRule, splitNativeEditorRender } from "./editor.ts";
 export { InputFrameRuntime, type EditorFactory } from "./runtime.ts";
-export {
-  composeSegments,
-  SEGMENT_SEPARATOR,
-  type ComposeResult,
-  type FrameSegment,
-  type FrameSegmentId,
-} from "./segments.ts";
-export { readGitBranch, resetGitBranchCache } from "./git-status.ts";

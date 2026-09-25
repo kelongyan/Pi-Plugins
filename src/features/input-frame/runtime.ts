@@ -18,8 +18,6 @@ export type EditorFactory = (tui: any, theme: any, keybindings: any) => unknown;
 const FALLBACK_SETTINGS: InputFrameSettingsLike = {
   showModel: true,
   showThinking: true,
-  showPath: true,
-  showGit: true,
   showContext: true,
 };
 
@@ -41,8 +39,6 @@ export class InputFrameRuntime {
     this.settings = {
       showModel: settings.showModel,
       showThinking: settings.showThinking,
-      showPath: settings.showPath,
-      showGit: settings.showGit,
       showContext: settings.showContext,
     };
     this.enabled = settings.enabled;
@@ -79,7 +75,7 @@ export class InputFrameRuntime {
       return createFramedEditor(tui, theme, keybindings, {
         getTheme: resolveTheme,
         getStatus: (): EditorFrameStatus => {
-          if (generation !== this.generation) return { segments: [] };
+          if (generation !== this.generation) return {};
           return buildFrameStatus({
             ctx: this.ctx,
             theme: resolveTheme(),

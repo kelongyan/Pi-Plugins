@@ -2,14 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { InputFrameRuntime } from "../src/features/input-frame/runtime.ts";
 
-const SETTINGS = {
-  enabled: true,
-  showModel: true,
-  showThinking: true,
-  showPath: true,
-  showGit: true,
-  showContext: true,
-};
+const SETTINGS = { enabled: true, showModel: true, showThinking: true, showContext: true };
 
 /** 伪造 Pi 的 ui.editor 槽位，记录每次操作。 */
 function createFakeUi(): { ui: any; calls: string[]; current(): unknown } {
