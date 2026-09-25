@@ -49,7 +49,8 @@ export const DEFAULT_SETTINGS: ZxdlSettings = {
   thinking: { enabled: true },
   inputFrame: {
     enabled: false,
-    showModel: true,
+    // 模型名通常在状态栏 / footer 已有显示，默认不在线框里重复一遍。
+    showModel: false,
     showThinking: true,
     showContext: true,
   },
