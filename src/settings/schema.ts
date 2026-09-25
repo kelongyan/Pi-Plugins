@@ -66,10 +66,10 @@ export const DEFAULT_SETTINGS: ZxdlSettings = {
   thinking: { enabled: true },
   inputFrame: {
     enabled: false,
-    // 模型名通常由状态栏显示，默认不在线框顶边重复一遍。
+    // 线框顶边的状态项默认全部关闭 —— 这些信息由底部状态栏统一承担，避免两处重复。
     showModel: false,
-    showThinking: true,
-    showContext: true,
+    showThinking: false,
+    showContext: false,
   },
   statusBar: {
     enabled: true,
