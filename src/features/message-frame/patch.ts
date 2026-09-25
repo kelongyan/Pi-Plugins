@@ -15,6 +15,7 @@ import { disposeMethodPatch, installMethodPatch, type MethodPatch } from "../../
 import { patchSlot } from "../../core/patch-keys.ts";
 import { PI_MESSAGE_COMPONENTS } from "../../core/pi-compat.ts";
 import { MIN_BOX_WIDTH, renderMessageBox, renderThinkingBox } from "./chrome.ts";
+import { applyZoneMarkers, renderAssistantSegments } from "./segments.ts";
 import { type ThemeLike } from "../../core/theme.ts";
 import { frameLabel, resolveStyleKind, type MessageKind, type ToolStatus } from "./styles.ts";
 
@@ -146,9 +147,20 @@ export function createWrappedRender(
       const styleKind = resolveStyleKind(labelKind, status);
       const toolName = deriveToolName(baseKind, instance);
       const label = frameLabel(labelKind, toolName, status);
+      const theme = getTheme();
+
+      // assistant 消息可能同时含思考块与正文：拆成各自独立的外框，
+      // 否则它们会被 Pi 渲染成一个整体、进而被包进同一个框。
+      if (baseKind === "assistant") {
+        const segmented = renderAssistantSegments(instance, numericWidth, theme);
+        if (segmented) {
+          const hasToolCalls = Boolean((instance as { hasToolCalls?: unknown })?.hasToolCalls);
+          return applyZoneMarkers(segmented, hasToolCalls);
+        }
+      }
 
       const innerLines = asLines(originalRender.call(instance, Math.max(1, numericWidth - 4)));
-      const options = { theme: getTheme(), label, toolName, status };
+      const options = { theme, label, toolName, status };
 
       if (labelKind === "thinking" && isHiddenThinking(instance)) {
         return renderThinkingBox(innerLines, numericWidth, options);
