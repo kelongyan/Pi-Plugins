@@ -177,6 +177,6 @@ test("token 为 0 时不显示该段（避免新会话就占位）", () => {
 });
 
 test("token 段图标按风格返回", () => {
-  assert.equal(segmentIcon("tokens", "emoji"), "🔢");
+  assert.equal(segmentIcon("tokens", "emoji"), "Σ");
   assert.equal(segmentIcon("tokens", "plain"), "tok");
 });

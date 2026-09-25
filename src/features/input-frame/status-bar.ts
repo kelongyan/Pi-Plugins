@@ -37,8 +37,14 @@ export type StatusBarSegment = {
 /** 段之间的分隔符。 */
 export const STATUS_SEPARATOR = " │ ";
 
+/**
+ * 图标表。
+ *
+ * emoji 这套与参考设计一致（🎨 模型 / 📘 目录 / ᛘ 分支 / 💾 上下文 / ⚡ 速度）；
+ * token 段参考截图里同位置的 `$`（单字符符号），用 `Σ` 表示累计，避免多格 emoji 破坏对齐。
+ */
 const ICON_SETS: Record<StatusBarIconStyle, Record<StatusBarSegmentId, string>> = {
-  emoji: { model: "🎨", path: "📘", git: "ᛘ", context: "💾", tokens: "🔢", speed: "⚡" },
+  emoji: { model: "🎨", path: "📘", git: "ᛘ", context: "💾", tokens: "Σ", speed: "⚡" },
   plain: { model: "model", path: "dir", git: "git", context: "ctx", tokens: "tok", speed: "tps" },
 };
 
