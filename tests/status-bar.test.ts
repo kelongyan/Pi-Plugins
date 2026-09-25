@@ -12,8 +12,8 @@ import {
 } from "../src/features/input-frame/status-bar.ts";
 
 const THEME: ThemeLike = { fg: (_token, text) => text };
-const ALL = { model: true, path: true, git: true, context: true, cost: true, speed: true };
-const NONE = { model: false, path: false, git: false, context: false, cost: false, speed: false };
+const ALL = { model: true, path: true, git: true, context: true, tokens: true, speed: true };
+const NONE = { model: false, path: false, git: false, context: false, tokens: false, speed: false };
 
 function seg(id: StatusBarSegment["id"], text: string): StatusBarSegment {
   return { id, text };
@@ -144,4 +144,39 @@ test("无窗口信息时上下文段显示问号而非崩溃", () => {
   assert.equal(segments.length, 1);
   assert.ok(segments[0]?.text.includes("?"));
   assert.ok(segments[0]?.text.includes("4.2k"));
+});
+
+test("token 段显示本会话累计（输入 + 输出）", () => {
+  const ctx = {
+    sessionManager: { getBranch: () => [{ message: { usage: { input: 3400, output: 1200 } } }] },
+  };
+  const segments = buildStatusBarSegments({
+    ctx,
+    theme: THEME,
+    icons: "plain",
+    settings: { ...NONE, tokens: true },
+  });
+
+  assert.equal(segments.length, 1);
+  assert.equal(segments[0]?.id, "tokens");
+  assert.ok(segments[0]?.text.includes("4.6k"), "3400 + 1200 = 4.6k");
+});
+
+test("token 为 0 时不显示该段（避免新会话就占位）", () => {
+  const ctx = {
+    sessionManager: { getBranch: () => [{ message: { usage: { input: 0, output: 0 } } }] },
+  };
+  const segments = buildStatusBarSegments({
+    ctx,
+    theme: THEME,
+    icons: "plain",
+    settings: { ...NONE, tokens: true },
+  });
+
+  assert.deepEqual(segments, []);
+});
+
+test("token 段图标按风格返回", () => {
+  assert.equal(segmentIcon("tokens", "emoji"), "🔢");
+  assert.equal(segmentIcon("tokens", "plain"), "tok");
 });

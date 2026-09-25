@@ -5,6 +5,7 @@ import {
   formatCost,
   formatSpeed,
   readSessionCost,
+  readSessionTokens,
 } from "../src/features/input-frame/session-stats.ts";
 
 test("readSessionCost 累加 usage.cost.total", () => {
@@ -88,4 +89,49 @@ test("onStream 忽略非法 usage", () => {
 
   assert.doesNotThrow(() => tracker.onIdle());
   assert.equal(tracker.tokensPerSecond, undefined);
+});
+
+test("readSessionTokens 累加 input 与 output", () => {
+  const ctx = {
+    sessionManager: {
+      getBranch: () => [
+        { message: { usage: { input: 1200, output: 340 } } },
+        { message: { usage: { input: 800, output: 160 } } },
+      ],
+    },
+  };
+
+  assert.deepEqual(readSessionTokens(ctx), { input: 2000, output: 500 });
+});
+
+test("readSessionTokens 忽略 cache 字段（只算 input + output）", () => {
+  const ctx = {
+    sessionManager: {
+      getBranch: () => [{ message: { usage: { input: 100, output: 50, cacheRead: 9999, cacheWrite: 8888 } } }],
+    },
+  };
+
+  assert.deepEqual(readSessionTokens(ctx), { input: 100, output: 50 });
+});
+
+test("readSessionTokens 全程防御性读取", () => {
+  assert.equal(readSessionTokens(undefined), undefined);
+  assert.equal(readSessionTokens({}), undefined);
+  assert.equal(readSessionTokens({ sessionManager: {} }), undefined);
+  assert.equal(readSessionTokens({ sessionManager: { getBranch: () => [] } }), undefined);
+  assert.equal(
+    readSessionTokens({ sessionManager: { getBranch: () => [{ message: {} }] } }),
+    undefined,
+    "完全没有 usage 时不给值",
+  );
+  assert.equal(
+    readSessionTokens({
+      sessionManager: {
+        getBranch: () => {
+          throw new Error("stale");
+        },
+      },
+    }),
+    undefined,
+  );
 });

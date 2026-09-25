@@ -46,7 +46,7 @@ export type StatusBarSettings = {
     path: boolean;
     git: boolean;
     context: boolean;
-    cost: boolean;
+    tokens: boolean;
     speed: boolean;
   };
 };
@@ -79,7 +79,7 @@ export const DEFAULT_SETTINGS: ZxdlSettings = {
       path: true,
       git: true,
       context: true,
-      cost: true,
+      tokens: true,
       speed: true,
     },
   },
@@ -135,7 +135,7 @@ export function normalizeSettings(value: unknown): ZxdlSettings {
         path: pickBool(barSegments.path, DEFAULT_SETTINGS.statusBar.segments.path),
         git: pickBool(barSegments.git, DEFAULT_SETTINGS.statusBar.segments.git),
         context: pickBool(barSegments.context, DEFAULT_SETTINGS.statusBar.segments.context),
-        cost: pickBool(barSegments.cost, DEFAULT_SETTINGS.statusBar.segments.cost),
+        tokens: pickBool(barSegments.tokens, DEFAULT_SETTINGS.statusBar.segments.tokens),
         speed: pickBool(barSegments.speed, DEFAULT_SETTINGS.statusBar.segments.speed),
       },
     },

@@ -32,7 +32,14 @@ export {
   type StatusBarSegmentId,
   type StatusBarSegmentSettings,
 } from "./status-bar.ts";
-export { formatCost, formatSpeed, readSessionCost, StreamSpeedTracker } from "./session-stats.ts";
+export {
+  formatCost,
+  formatSpeed,
+  readSessionCost,
+  readSessionTokens,
+  StreamSpeedTracker,
+  type SessionTokenUsage,
+} from "./session-stats.ts";
 export { readGitBranch, resetGitBranchCache } from "./git-status.ts";
 export { createFramedEditor, isNativeEditorRule, splitNativeEditorRender } from "./editor.ts";
 export {

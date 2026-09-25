@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { InputFrameRuntime } from "../src/features/input-frame/runtime.ts";
 
-const SEGMENTS = { model: true, path: true, git: true, context: true, cost: true, speed: true };
+const SEGMENTS = { model: true, path: true, git: true, context: true, tokens: true, speed: true };
 
 const SETTINGS = {
   enabled: true,

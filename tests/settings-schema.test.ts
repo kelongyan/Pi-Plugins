@@ -55,7 +55,7 @@ test("完整合法输入被原样保留", () => {
     statusBar: {
       enabled: false,
       icons: "plain",
-      segments: { model: false, path: true, git: false, context: true, cost: false, speed: true },
+      segments: { model: false, path: true, git: false, context: true, tokens: false, speed: true },
     },
   };
 

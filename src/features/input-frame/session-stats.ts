@@ -34,6 +34,53 @@ export function readSessionCost(ctx: unknown): number | undefined {
   }
 }
 
+export type SessionTokenUsage = {
+  /** 本会话累计输入 token。 */
+  input: number;
+  /** 本会话累计输出 token。 */
+  output: number;
+};
+
+/**
+ * 读取本会话累计 token 用量。
+ *
+ * 口径：assistant 消息的 `usage.input + usage.output`。
+ * 不含 cacheRead / cacheWrite —— 缓存读是可复用部分，混进总量会让人误判实际消耗。
+ */
+export function readSessionTokens(ctx: unknown): SessionTokenUsage | undefined {
+  try {
+    const sessionManager = (
+      ctx as { sessionManager?: { getBranch?: () => unknown } } | undefined
+    )?.sessionManager;
+    if (typeof sessionManager?.getBranch !== "function") return undefined;
+
+    const entries = sessionManager.getBranch();
+    if (!Array.isArray(entries)) return undefined;
+
+    let input = 0;
+    let output = 0;
+    let found = false;
+
+    for (const entry of entries as Array<Record<string, unknown>>) {
+      const usage = (entry?.message as { usage?: { input?: unknown; output?: unknown } } | undefined)
+        ?.usage;
+
+      if (typeof usage?.input === "number" && Number.isFinite(usage.input)) {
+        input += usage.input;
+        found = true;
+      }
+      if (typeof usage?.output === "number" && Number.isFinite(usage.output)) {
+        output += usage.output;
+        found = true;
+      }
+    }
+
+    return found ? { input, output } : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** 费用格式化：极小额用 4 位小数，避免一直显示 $0.00。 */
 export function formatCost(value: number | undefined): string | undefined {
   if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return undefined;

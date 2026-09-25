@@ -96,7 +96,7 @@ const BAR_SAMPLE: StatusBarSegment[] = [
   { id: "path", text: "dir project" },
   { id: "git", text: "git main" },
   { id: "context", text: "ctx 18.8% (48k/256k)" },
-  { id: "cost", text: "cost $0.32" },
+  { id: "tokens", text: "tok 4.6k" },
   { id: "speed", text: "tps 18.4 tps" },
 ];
 
@@ -108,7 +108,7 @@ samples.push({
 
 samples.push({
   heading: "底部状态栏（窄宽度降级）",
-  note: "宽度 70：先丢速度与费用，再丢上下文，保留模型 / 目录 / 分支",
+  note: "宽度 70：先丢速度与 token，再丢上下文，保留模型 / 目录 / 分支",
   lines: [composeStatusBar(BAR_SAMPLE, 70)],
 });
 

@@ -48,7 +48,7 @@ const FALLBACK_BAR_SEGMENTS: StatusBarSegmentSettings = {
   path: true,
   git: true,
   context: true,
-  cost: true,
+  tokens: true,
   speed: true,
 };
 

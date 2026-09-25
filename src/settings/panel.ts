@@ -150,12 +150,12 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     },
   },
   {
-    id: "sbCost",
-    label: "费用",
+    id: "sbTokens",
+    label: "Token 计数",
     depth: 2,
-    get: (settings) => settings.statusBar.segments.cost,
+    get: (settings) => settings.statusBar.segments.tokens,
     set: (settings, value) => {
-      settings.statusBar.segments.cost = value;
+      settings.statusBar.segments.tokens = value;
     },
   },
   {

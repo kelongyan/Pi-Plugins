@@ -115,7 +115,7 @@ _hideThinkingBlock 为 true 时使用_
 _位于输入框下方；宽度不足时从右往左整段丢弃，永不截断段内文字_
 
 ```text
- model Atria-Dawn-Preview(high) │ dir project │ git main │ ctx 18.8% (48k/256k) │ cost $0.32 │ tps 18.4 tps
+ model Atria-Dawn-Preview(high) │ dir project │ git main │ ctx 18.8% (48k/256k) │ tok 4.6k │ tps 18.4 tps
 ```
 
 ## 底部状态栏（窄宽度降级）

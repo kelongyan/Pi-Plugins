@@ -11,7 +11,7 @@
 import { visibleWidth } from "@earendil-works/pi-tui";
 import { safeFg, type ThemeLike } from "../../core/theme.ts";
 import { readGitBranch } from "./git-status.ts";
-import { formatCost, formatSpeed, readSessionCost } from "./session-stats.ts";
+import { formatSpeed, readSessionTokens } from "./session-stats.ts";
 import {
   formatTokens,
   readContextUsage,
@@ -21,7 +21,7 @@ import {
   shortenPath,
 } from "./status.ts";
 
-export type StatusBarSegmentId = "model" | "path" | "git" | "context" | "cost" | "speed";
+export type StatusBarSegmentId = "model" | "path" | "git" | "context" | "tokens" | "speed";
 
 export type StatusBarIconStyle = "emoji" | "plain";
 
@@ -38,8 +38,8 @@ export type StatusBarSegment = {
 export const STATUS_SEPARATOR = " │ ";
 
 const ICON_SETS: Record<StatusBarIconStyle, Record<StatusBarSegmentId, string>> = {
-  emoji: { model: "🎨", path: "📘", git: "ᛘ", context: "💾", cost: "$", speed: "⚡" },
-  plain: { model: "model", path: "dir", git: "git", context: "ctx", cost: "cost", speed: "tps" },
+  emoji: { model: "🎨", path: "📘", git: "ᛘ", context: "💾", tokens: "🔢", speed: "⚡" },
+  plain: { model: "model", path: "dir", git: "git", context: "ctx", tokens: "tok", speed: "tps" },
 };
 
 /** 各段默认使用的主题 token。 */
@@ -48,7 +48,7 @@ const SEGMENT_TOKENS: Record<StatusBarSegmentId, string> = {
   path: "customMessageLabel",
   git: "success",
   context: "success",
-  cost: "muted",
+  tokens: "muted",
   speed: "success",
 };
 
@@ -129,8 +129,13 @@ export function buildStatusBarSegments(input: StatusBarInput): StatusBarSegment[
     }
   }
 
-  if (settings.cost) {
-    add("cost", formatCost(readSessionCost(ctx)));
+  // 本会话累计 token（输入 + 输出）；为 0 时不显示，避免刚开新会话就占位。
+  if (settings.tokens) {
+    const usage = readSessionTokens(ctx);
+    if (usage) {
+      const total = usage.input + usage.output;
+      if (total > 0) add("tokens", formatTokens(total));
+    }
   }
 
   if (settings.speed) {
