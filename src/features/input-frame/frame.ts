@@ -24,7 +24,23 @@ const DEGRADE_GUARD = 6;
 /** 净化时用于临时占位，保证 CURSOR_MARKER 不被当作控制字符剥掉。 */
 const CURSOR_PLACEHOLDER = "\uE000ZXDL_CURSOR\uE000";
 
-const SIDE = "│";
+/**
+ * 边框字符集：轻线（light）+ 圆角。
+ *
+ * 曾经试过重线（┏━┓ ┃ ┗━┛），视觉太重；且 Unicode 的 Box Drawing
+ * 里**没有重线圆角**字形，加粗必然变成直角 —— 所以回到轻线圆角。
+ * 字符都集中在这一处，以后想换风格改这里即可。
+ */
+const BORDER = {
+  topLeft: "╭",
+  topRight: "╮",
+  bottomLeft: "╰",
+  bottomRight: "╯",
+  horizontal: "─",
+  vertical: "│",
+} as const;
+
+const SIDE = BORDER.vertical;
 const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 
 export type EditorFrameStatus = {
@@ -62,15 +78,15 @@ function buildTopBorder(width: number, theme: ThemeLike, status: EditorFrameStat
   return buildBorderLine({
     width,
     theme,
-    leftCorner: "╭",
-    rightCorner: "╮",
+    leftCorner: BORDER.topLeft,
+    rightCorner: BORDER.topRight,
     leftLabel: left,
     rightLabel: status.context ?? "",
   });
 }
 
 function buildBottomBorder(width: number, theme: ThemeLike): string {
-  return buildBorderLine({ width, theme, leftCorner: "╰", rightCorner: "╯" });
+  return buildBorderLine({ width, theme, leftCorner: BORDER.bottomLeft, rightCorner: BORDER.bottomRight });
 }
 
 type BorderLineInput = {
@@ -126,7 +142,7 @@ function buildBorderLine(input: BorderLineInput): string {
   return (
     theme.fg("borderMuted", leftCorner) +
     padded(leftLabel) +
-    theme.fg("borderMuted", "─".repeat(dashCount)) +
+    theme.fg("borderMuted", BORDER.horizontal.repeat(dashCount)) +
     padded(rightLabel) +
     theme.fg("borderMuted", rightCorner)
   );
