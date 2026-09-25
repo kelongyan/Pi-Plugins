@@ -61,6 +61,7 @@ export class InputFrameRuntime {
   private barIcons: StatusBarIconStyle = "emoji";
   private barSegments: StatusBarSegmentSettings = FALLBACK_BAR_SEGMENTS;
   private factory: EditorFactory | undefined;
+  private footerFactory: ((...args: unknown[]) => unknown) | undefined;
   private readonly deps: InputFrameRuntimeDeps;
 
   constructor(deps: InputFrameRuntimeDeps = {}) {
@@ -87,9 +88,9 @@ export class InputFrameRuntime {
     this.reconcile();
   }
 
-  /** 是否由本插件接管输入框（线框或状态栏任一开启即算）。 */
+  /** 是否已接管 editor（线框）或 footer（状态栏）任一。 */
   get isActive(): boolean {
-    return Boolean((this.enabled || this.barEnabled) && this.factory !== undefined);
+    return this.factory !== undefined || this.footerFactory !== undefined;
   }
 
   private readUi(): any {
@@ -103,49 +104,93 @@ export class InputFrameRuntime {
 
   private reconcile(): void {
     const ui = this.readUi();
-    if (!ui || typeof ui.setEditorComponent !== "function") return;
+    if (!ui) return;
 
-    // 线框与状态栏任一开启都需要接管 editor。
-    if (!this.enabled && !this.barEnabled) {
+    // editor 承载线框：只在需要线框时才接管，避免无谓地替换宿主 editor。
+    if (this.enabled && typeof ui.setEditorComponent === "function") {
+      const generation = this.generation;
+      const factory: EditorFactory = (tui, theme, keybindings) => {
+        // 会话已切换：让 Pi 使用默认 editor。
+        if (generation !== this.generation) return undefined;
+
+        return createFramedEditor(tui, theme, keybindings, {
+          getTheme: resolveTheme,
+          isFrameEnabled: () => this.enabled,
+          getStatus: (): EditorFrameStatus => {
+            if (generation !== this.generation) return {};
+            return buildFrameStatus({
+              ctx: this.ctx,
+              theme: resolveTheme(),
+              settings: this.settings,
+            });
+          },
+        });
+      };
+
+      this.factory = factory;
+      try {
+        ui.setEditorComponent(factory);
+      } catch {
+        // stale ctx：保持 factory 记录，等下次 bindSession 重试。
+      }
+    } else {
       this.restoreEditor();
-      return;
     }
 
+    // footer 承载状态栏：与线框相互独立。
+    this.reconcileFooter(ui);
+  }
+
+  /**
+   * 状态栏接管 footer。
+   *
+   * 必须走 footer，而不是往 editor 输出里塞一行 ——
+   * Pi 原生就有一个 footer（渲染 cwd / 上下文 / 模型 / thinking），
+   * 不接管它会和我们的状态栏在同一位置重复显示。
+   */
+  private reconcileFooter(ui: any): void {
+    if (!this.barEnabled) {
+      this.restoreFooter();
+      return;
+    }
+    if (typeof ui.setFooter !== "function") return;
+
     const generation = this.generation;
-    const factory: EditorFactory = (tui, theme, keybindings) => {
-      // 会话已切换：让 Pi 使用默认 editor。
-      if (generation !== this.generation) return undefined;
+    const footerFactory = (_tui: unknown, _theme: unknown, _footerData: unknown) => ({
+      render: (width: number): string[] => {
+        if (generation !== this.generation || !this.barEnabled) return [];
+        const segments = buildStatusBarSegments({
+          ctx: this.ctx,
+          theme: resolveTheme(),
+          icons: this.barIcons,
+          settings: this.barSegments,
+          tokensPerSecond: this.deps.getTokensPerSecond?.(),
+        });
+        const line = composeStatusBar(segments, width);
+        return line ? [line] : [];
+      },
+      invalidate: (): void => {
+        // 无缓存。
+      },
+    });
 
-      return createFramedEditor(tui, theme, keybindings, {
-        getTheme: resolveTheme,
-        isFrameEnabled: () => this.enabled,
-        getStatus: (): EditorFrameStatus => {
-          if (generation !== this.generation) return {};
-          return buildFrameStatus({
-            ctx: this.ctx,
-            theme: resolveTheme(),
-            settings: this.settings,
-          });
-        },
-        getStatusBarLine: (width: number): string | undefined => {
-          if (generation !== this.generation || !this.barEnabled) return undefined;
-          const segments = buildStatusBarSegments({
-            ctx: this.ctx,
-            theme: resolveTheme(),
-            icons: this.barIcons,
-            settings: this.barSegments,
-            tokensPerSecond: this.deps.getTokensPerSecond?.(),
-          });
-          return composeStatusBar(segments, width) || undefined;
-        },
-      });
-    };
-
-    this.factory = factory;
+    this.footerFactory = footerFactory;
     try {
-      ui.setEditorComponent(factory);
+      ui.setFooter(footerFactory);
     } catch {
-      // stale ctx：保持 factory 记录，等下次 bindSession 重试。
+      // stale ctx：等下次 bindSession 重试。
+    }
+  }
+
+  /** 恢复 Pi 默认 footer。 */
+  private restoreFooter(): void {
+    const ui = this.readUi();
+    this.footerFactory = undefined;
+    if (!ui || typeof ui.setFooter !== "function") return;
+    try {
+      ui.setFooter(undefined);
+    } catch {
+      // stale ctx：交给 Pi 自己管理。
     }
   }
 
@@ -170,7 +215,9 @@ export class InputFrameRuntime {
   /** 幂等释放。会话结束时调用。 */
   dispose(): void {
     this.restoreEditor();
+    this.restoreFooter();
     this.enabled = false;
+    this.barEnabled = false;
     this.ctx = undefined;
   }
 }

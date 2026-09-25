@@ -17,12 +17,10 @@ import { renderEditorFrame, type EditorFrameStatus } from "./frame.ts";
 
 export type FramedEditorState = {
   getTheme(): ThemeLike;
-  /** 线框顶边的状态（thinking / 上下文）。 */
+  /** 线框顶边的状态。 */
   getStatus(): EditorFrameStatus;
   /** 是否绘制线框（关闭时只输出原生 editor 内容）。 */
   isFrameEnabled(): boolean;
-  /** 状态栏整行（已含前导空格）；返回空表示不显示。 */
-  getStatusBarLine(width: number): string | undefined;
 };
 
 export type FramedEditorOptions = {
@@ -37,10 +35,12 @@ function asLines(value: unknown): string[] {
 }
 
 /**
- * 统一渲染路径：线框（可选）+ 原生内容 + 弹出行 + 状态栏（可选）。
+ * 统一渲染路径：线框（可选）+ 原生内容 + 弹出行。
  *
  * 两个基类分支（CustomEditor / Editor）共用它，避免逻辑漂移。
- * 宽度过窄的降级由 `renderEditorFrame` 与 `composeStatusBar` 各自负责。
+ * 宽度过窄的降级由 `renderEditorFrame` 负责。
+ * 注意：状态栏不在这里 —— 它由 runtime 通过 `ctx.ui.setFooter` 接管，
+ * 这样正好覆盖 Pi 的原生 footer（否则会和它重复）。
  */
 function renderWithFrame(
   callSuperRender: (width: number) => unknown,
@@ -68,11 +68,8 @@ function renderWithFrame(
     out.push(...editorLines);
   }
 
-  // 补全列表紧贴输入区；状态栏始终在最底。
+  // 补全列表紧贴输入区。
   out.push(...fitPopupLines(popupLines, numericWidth));
-
-  const statusBar = state.getStatusBarLine(numericWidth);
-  if (statusBar) out.push(statusBar);
 
   return out;
 }
