@@ -114,24 +114,47 @@ function isHiddenThinking(instance: any): boolean {
   }
 }
 
+/** 消息外框的运行时配置。每次 render 时读取，因此设置变更无需重新安装补丁即可生效。 */
+export type MessageFrameConfig = {
+  /** 助手回复是否加框。 */
+  assistantFrame: boolean;
+  /** 用户消息是否加框。 */
+  userFrame: boolean;
+  /** 思考块是否使用独立的 THINK 框（关闭后退回普通 ASSISTANT 框）。 */
+  thinkingFrame: boolean;
+};
+
+export const DEFAULT_MESSAGE_FRAME_CONFIG: MessageFrameConfig = {
+  assistantFrame: true,
+  userFrame: true,
+  thinkingFrame: true,
+};
+
 /**
  * 构造新的 render。
  *
  * 行为契约：
  * - 任何异常都回退到原始 render；原始 render 也失败时返回空数组
  * - 宽度不足时直接回退原始输出，不尝试画框
+ * - 配置里关闭的类型直接交还 Pi 原生渲染
  */
 export function createWrappedRender(
   baseKind: MessageKind,
   originalRender: (...args: any[]) => unknown,
   getTheme: () => ThemeLike,
-  thinkingFrame = true,
+  getConfig: () => MessageFrameConfig = () => DEFAULT_MESSAGE_FRAME_CONFIG,
 ): (this: any, width: number) => string[] {
   return function zxdlRender(this: any, width: number): string[] {
     const instance = this;
     const fallback = (): string[] => asLines(originalRender.call(instance, width));
 
     try {
+      const config = getConfig();
+
+      // 该类型被显式关闭时，完全交还 Pi 原生渲染（不画框、不动内容）。
+      if (baseKind === "user" && !config.userFrame) return fallback();
+      if (baseKind === "assistant" && !config.assistantFrame) return fallback();
+
       const numericWidth = Number.isFinite(width) ? Math.floor(width) : 0;
       if (numericWidth < MIN_BOX_WIDTH) return fallback();
 
@@ -139,7 +162,7 @@ export function createWrappedRender(
       // 否则 bash 的标签会被错误地写成 TOOL。
       // 本项目不做思考动画；thinkingFrame 关闭时思考内容退回普通 assistant 外框。
       let labelKind = baseKind;
-      if (thinkingFrame && baseKind === "assistant" && isThinkingOnlyAssistant(instance)) {
+      if (config.thinkingFrame && baseKind === "assistant" && isThinkingOnlyAssistant(instance)) {
         labelKind = "thinking";
       }
 
@@ -192,9 +215,8 @@ const OWNER = Symbol("pi-zxdl-message-frame-owner");
  */
 export function installMessageFrame(
   getTheme: () => ThemeLike,
-  options: { thinkingFrame?: boolean } = {},
+  getConfig: () => MessageFrameConfig = () => DEFAULT_MESSAGE_FRAME_CONFIG,
 ): MessageFrameHandle | undefined {
-  const thinkingFrame = options.thinkingFrame !== false;
   const components = PI_MESSAGE_COMPONENTS as unknown as Record<string, any>;
   const patches: MethodPatch[] = [];
   const targets: string[] = [];
@@ -208,7 +230,7 @@ export function installMessageFrame(
       target: ctor.prototype as Record<string, any>,
       method: "render",
       owner: OWNER,
-      create: (original) => createWrappedRender(baseKind, original, getTheme, thinkingFrame),
+      create: (original) => createWrappedRender(baseKind, original, getTheme, getConfig),
     });
 
     if (patch) {

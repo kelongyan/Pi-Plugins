@@ -23,4 +23,9 @@ export {
   type ThemeLike,
   type ToolStatus,
 } from "./styles.ts";
-export { installMessageFrame, type MessageFrameHandle } from "./patch.ts";
+export {
+  DEFAULT_MESSAGE_FRAME_CONFIG,
+  installMessageFrame,
+  type MessageFrameConfig,
+  type MessageFrameHandle,
+} from "./patch.ts";
