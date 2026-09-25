@@ -39,6 +39,14 @@ export function resolveSettingsFilePath(): string {
   return join(resolveAgentDir(), "settings.json");
 }
 
+/**
+ * 读取整个 settings.json 的快照（只读用途，例如判断用户是否已自定义主题）。
+ * 文件不存在返回 {}；解析失败返回 undefined。
+ */
+export function readRootSettingsSnapshot(): Record<string, unknown> | undefined {
+  return readRootSettings(resolveSettingsFilePath());
+}
+
 /** 读取整个 settings.json。文件不存在按空对象处理；解析失败返回 undefined。 */
 function readRootSettings(file: string): Record<string, unknown> | undefined {
   if (!existsSync(file)) return {};

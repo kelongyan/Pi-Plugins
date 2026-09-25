@@ -21,7 +21,7 @@ Pi coding agent 的 TUI 增强扩展。三件事：
 | P1 | 消息对话框外框（含思考过程框） | ✅ 已完成 |
 | P2 | 思考过程动画 | ❌ 已取消（本项目不做动画） |
 | P3 | 输入框线框（模型 / thinking / 上下文嵌入） | ✅ 已完成 |
-| P4 | 设置面板（overlay） | ✅ 已完成（自带主题留待后续） |
+| P4 | 设置面板（overlay）+ 自带 Eva 主题 | ✅ 已完成 |
 | P5 | 测试补齐 + 渲染基线 | ⏳ 待开始 |
 
 ## 安装
@@ -43,6 +43,14 @@ pi install git:https://github.com/<owner>/pi-zxdl
 ```
 
 设置面板的改动**即时生效并自动持久化**，不需要重启。
+
+## 自带 Eva 主题
+
+打包了两套主题：`eva-dark` 与 `eva-light` —— 由 [Eva-Theme](https://github.com/fisheva/Eva-Theme)（MIT）的调色板映射到 Pi 的主题 roles。
+
+**安装即启用**：首次启动时，如果当前主题仍是 Pi 自带的 `dark` / `light`，会自动切到 `eva-light/eva-dark`（跟随终端明暗）；自动模式不被接受时退回 `eva-dark`。
+
+如果你手动选过任何其它主题，插件**不再干预** —— 避免「改完又被改回去」。想换回来用 `/settings` → Theme。
 
 ## 要求
 

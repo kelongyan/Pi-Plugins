@@ -26,7 +26,12 @@ import { resolveTheme } from "./src/core/theme.ts";
 import { InputFrameRuntime } from "./src/features/input-frame/index.ts";
 import { installMessageFrame, type MessageFrameHandle } from "./src/features/message-frame/index.ts";
 import { cloneSettings, isFeatureActive, type ZxdlSettings } from "./src/settings/schema.ts";
-import { readPersistedSettings, writePersistedSettings } from "./src/settings/store.ts";
+import {
+  readPersistedSettings,
+  readRootSettingsSnapshot,
+  writePersistedSettings,
+} from "./src/settings/store.ts";
+import { applyDefaultTheme, type ThemeUiLike } from "./src/settings/theme.ts";
 
 export type ZxdlRuntimeDeps = {
   /** 测试注入点：替换能力探测。 */
@@ -122,6 +127,14 @@ export function registerZxdlExtension(pi: ExtensionAPI, deps: ZxdlRuntimeDeps = 
     for (const failure of formatPiCapabilityFailures(capabilities)) {
       console.debug?.(`[pi-zxdl] ${failure}`);
     }
+
+    // 自带主题（Eva）：只在用户尚未自定义主题时接管，避免改完又被改回去。
+    const themeSetting = readRootSettingsSnapshot()?.theme;
+    const appliedTheme = applyDefaultTheme(
+      (ctx as { ui?: ThemeUiLike } | undefined)?.ui,
+      typeof themeSetting === "string" ? themeSetting : undefined,
+    );
+    if (appliedTheme) console.debug?.(`[pi-zxdl] 已应用自带主题：${appliedTheme}`);
 
     applyRuntime();
   });
