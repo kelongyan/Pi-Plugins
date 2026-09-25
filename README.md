@@ -31,7 +31,7 @@ Pi coding agent 的 TUI 增强扩展。三件事：
 pi install ./F:/Pi-Plugins/pi-zxdl
 
 # 或从 git
-pi install git:https://github.com/<owner>/pi-zxdl
+pi install git:https://github.com/kelongyan/Pi-Plugins
 ```
 
 安装后 `/reload` 生效。命令：
