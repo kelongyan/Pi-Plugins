@@ -104,6 +104,78 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
       settings.inputFrame.showModel = value;
     },
   },
+  {
+    id: "statusBar",
+    label: "底部状态栏",
+    depth: 1,
+    get: (settings) => settings.statusBar.enabled,
+    set: (settings, value) => {
+      settings.statusBar.enabled = value;
+    },
+  },
+  {
+    id: "sbModel",
+    label: "模型 + thinking",
+    depth: 2,
+    get: (settings) => settings.statusBar.segments.model,
+    set: (settings, value) => {
+      settings.statusBar.segments.model = value;
+    },
+  },
+  {
+    id: "sbPath",
+    label: "工作目录",
+    depth: 2,
+    get: (settings) => settings.statusBar.segments.path,
+    set: (settings, value) => {
+      settings.statusBar.segments.path = value;
+    },
+  },
+  {
+    id: "sbGit",
+    label: "git 分支",
+    depth: 2,
+    get: (settings) => settings.statusBar.segments.git,
+    set: (settings, value) => {
+      settings.statusBar.segments.git = value;
+    },
+  },
+  {
+    id: "sbContext",
+    label: "上下文用量",
+    depth: 2,
+    get: (settings) => settings.statusBar.segments.context,
+    set: (settings, value) => {
+      settings.statusBar.segments.context = value;
+    },
+  },
+  {
+    id: "sbCost",
+    label: "费用",
+    depth: 2,
+    get: (settings) => settings.statusBar.segments.cost,
+    set: (settings, value) => {
+      settings.statusBar.segments.cost = value;
+    },
+  },
+  {
+    id: "sbSpeed",
+    label: "输出速度",
+    depth: 2,
+    get: (settings) => settings.statusBar.segments.speed,
+    set: (settings, value) => {
+      settings.statusBar.segments.speed = value;
+    },
+  },
+  {
+    id: "sbIcons",
+    label: "使用 emoji 图标",
+    depth: 2,
+    get: (settings) => settings.statusBar.icons === "emoji",
+    set: (settings, value) => {
+      settings.statusBar.icons = value ? "emoji" : "plain";
+    },
+  },
 ];
 
 const TITLE = " pi-zxdl 设置 ";

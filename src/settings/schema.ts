@@ -35,12 +35,29 @@ export type InputFrameSettings = {
   showContext: boolean;
 };
 
+export type StatusBarSettings = {
+  /** 状态栏总开关。 */
+  enabled: boolean;
+  /** 图标风格：emoji 直观但占 2 列；plain 用文字标签。 */
+  icons: "emoji" | "plain";
+  /** 各段开关。 */
+  segments: {
+    model: boolean;
+    path: boolean;
+    git: boolean;
+    context: boolean;
+    cost: boolean;
+    speed: boolean;
+  };
+};
+
 export type ZxdlSettings = {
   /** 总开关。关闭后所有功能失效，但保留各子项偏好。 */
   enabled: boolean;
   messageFrame: MessageFrameSettings;
   thinking: ThinkingSettings;
   inputFrame: InputFrameSettings;
+  statusBar: StatusBarSettings;
 };
 
 export const DEFAULT_SETTINGS: ZxdlSettings = {
@@ -49,10 +66,22 @@ export const DEFAULT_SETTINGS: ZxdlSettings = {
   thinking: { enabled: true },
   inputFrame: {
     enabled: false,
-    // 模型名通常在状态栏 / footer 已有显示，默认不在线框里重复一遍。
+    // 模型名通常由状态栏显示，默认不在线框顶边重复一遍。
     showModel: false,
     showThinking: true,
     showContext: true,
+  },
+  statusBar: {
+    enabled: true,
+    icons: "emoji",
+    segments: {
+      model: true,
+      path: true,
+      git: true,
+      context: true,
+      cost: true,
+      speed: true,
+    },
   },
 };
 
@@ -66,12 +95,21 @@ function pickBool(value: unknown, fallback: boolean): boolean {
   return typeof value === "boolean" ? value : fallback;
 }
 
+/** 只接受白名单内的字符串，其它一律回退默认值。 */
+function pickEnum<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {
+  return typeof value === "string" && (allowed as readonly string[]).includes(value)
+    ? (value as T)
+    : fallback;
+}
+
 /** 把任意输入规范化为完整、类型正确的配置。 */
 export function normalizeSettings(value: unknown): ZxdlSettings {
   const root = asRecord(value);
   const frame = asRecord(root.messageFrame);
   const thinking = asRecord(root.thinking);
   const input = asRecord(root.inputFrame);
+  const statusBar = asRecord(root.statusBar);
+  const barSegments = asRecord(statusBar.segments);
 
   return {
     enabled: pickBool(root.enabled, DEFAULT_SETTINGS.enabled),
@@ -89,6 +127,18 @@ export function normalizeSettings(value: unknown): ZxdlSettings {
       showThinking: pickBool(input.showThinking, DEFAULT_SETTINGS.inputFrame.showThinking),
       showContext: pickBool(input.showContext, DEFAULT_SETTINGS.inputFrame.showContext),
     },
+    statusBar: {
+      enabled: pickBool(statusBar.enabled, DEFAULT_SETTINGS.statusBar.enabled),
+      icons: pickEnum(statusBar.icons, ["emoji", "plain"] as const, DEFAULT_SETTINGS.statusBar.icons),
+      segments: {
+        model: pickBool(barSegments.model, DEFAULT_SETTINGS.statusBar.segments.model),
+        path: pickBool(barSegments.path, DEFAULT_SETTINGS.statusBar.segments.path),
+        git: pickBool(barSegments.git, DEFAULT_SETTINGS.statusBar.segments.git),
+        context: pickBool(barSegments.context, DEFAULT_SETTINGS.statusBar.segments.context),
+        cost: pickBool(barSegments.cost, DEFAULT_SETTINGS.statusBar.segments.cost),
+        speed: pickBool(barSegments.speed, DEFAULT_SETTINGS.statusBar.segments.speed),
+      },
+    },
   };
 }
 
@@ -99,6 +149,10 @@ export function cloneSettings(settings: ZxdlSettings): ZxdlSettings {
     messageFrame: { ...settings.messageFrame },
     thinking: { ...settings.thinking },
     inputFrame: { ...settings.inputFrame },
+    statusBar: {
+      ...settings.statusBar,
+      segments: { ...settings.statusBar.segments },
+    },
   };
 }
 

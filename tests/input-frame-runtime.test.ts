@@ -2,7 +2,17 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { InputFrameRuntime } from "../src/features/input-frame/runtime.ts";
 
-const SETTINGS = { enabled: true, showModel: true, showThinking: true, showContext: true };
+const SEGMENTS = { model: true, path: true, git: true, context: true, cost: true, speed: true };
+
+const SETTINGS = {
+  enabled: true,
+  showModel: true,
+  showThinking: true,
+  showContext: true,
+  statusBarEnabled: false,
+  statusBarIcons: "emoji" as const,
+  statusBarSegments: SEGMENTS,
+};
 
 /** 伪造 Pi 的 ui.editor 槽位，记录每次操作。 */
 function createFakeUi(): { ui: any; calls: string[]; current(): unknown } {

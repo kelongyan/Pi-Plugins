@@ -52,6 +52,11 @@ test("完整合法输入被原样保留", () => {
       showThinking: false,
       showContext: true,
     },
+    statusBar: {
+      enabled: false,
+      icons: "plain",
+      segments: { model: false, path: true, git: false, context: true, cost: false, speed: true },
+    },
   };
 
   assert.deepEqual(normalizeSettings(input), input);

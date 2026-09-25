@@ -4,7 +4,8 @@ Pi coding agent 的 TUI 增强扩展。三件事：
 
 1. **消息对话框外框** — 让助手回复、用户消息、工具调用、Bash 执行在视觉上清晰分隔
 2. **思考过程线框** — 思考内容带独立外框（折叠态紧凑三行，展开态完整内容），**静态无动画**
-3. **输入框线框** — 底部输入框带线框，内嵌 thinking 级别与上下文进度（模型名可选，默认关）
+3. **输入框线框** — 底部输入框带线框（顶边可选显示 thinking 与上下文）
+4. **底部状态栏** — 输入框下方一行：模型 / 目录 / 分支 / 上下文 / 费用 / 速度
 
 > 名字取自「扎西德勒」（Tashi Delek）。
 
@@ -104,9 +105,12 @@ src/features/
     chrome.ts                 纯绘制：边框拼装、前景状态跟踪、宽度降级
     styles.ts                 kind → 主题 token 映射与标签
     patch.ts                  组件 render 包装（8 类消息组件）
-  input-frame/              P3：底部输入框线框（无 patch，全走公开 API）
+  input-frame/              P3/P6：输入框线框 + 底部状态栏（无 patch，全走公开 API）
     frame.ts                  线框绘制 + 标签降级（保护 CURSOR_MARKER）
-    status.ts                 模型名 / thinking / 上下文进度
+    status.ts                 线框顶边数据：thinking / 上下文
+    status-bar.ts             底部状态栏：段定义 + 组装 + 宽度降级
+    session-stats.ts          费用累计 + 流式速度跟踪
+    git-status.ts             git 分支的同步读取 + 后台刷新
     editor.ts                 继承官方 CustomEditor，只覆盖 render
     runtime.ts                setEditorComponent 挂载 + generation 隔离
 ```
@@ -139,6 +143,20 @@ src/features/
 - **完全不用 patch**，只走 `ctx.ui.setEditorComponent` 这一个公开 API
 - 切会话递增 generation，过期 factory 返回 `undefined` 主动放弃接管
 - 卸载时只在 editor 仍由本插件持有时才清除，绝不覆盖第三方
+
+### 底部状态栏
+
+输入框**下方**独占一行，显示 6 个信息段：
+
+    ╭──────────────────────────────────────╮
+    │ > 输入内容                           │
+    ╰──────────────────────────────────────╯
+     🎨 claude-sonnet(high) │ 📘 proj │ ᛘ main │ 💾 18.8% (48k/256k) │ $0.32 │ ⚡ 18.4 tps
+
+- **段顺序即优先级**：宽度不足时从右往左整段丢弃（先丢速度、再丢费用……），**永不截断段内文字**
+- **图标**：默认 emoji，可切 `plain`（emoji 宽 2 列，某些终端会影响对齐）
+- **数据来源**：模型 / thinking / 上下文来自 `ctx`；目录来自 `ctx.cwd`；git 由子进程异步查询（超时 300ms、失败保留旧值不闪烁）；费用从 session 累计；速度由流式事件统计（空闲时保留上一次的值）
+- **与线框独立**：线框关了状态栏仍可单独开启（两者任一开启即接管 editor）
 
 ### 三条设计原则
 

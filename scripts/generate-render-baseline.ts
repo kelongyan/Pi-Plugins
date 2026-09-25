@@ -14,6 +14,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ThemeLike } from "../src/core/theme.ts";
 import { renderEditorFrame } from "../src/features/input-frame/frame.ts";
+import { composeStatusBar, type StatusBarSegment } from "../src/features/input-frame/status-bar.ts";
 import { renderMessageBox, renderThinkingBox } from "../src/features/message-frame/chrome.ts";
 import type { MessageKind } from "../src/features/message-frame/styles.ts";
 
@@ -87,6 +88,28 @@ samples.push({
       context: "━━━━━━────── 42% 256k",
     },
   }),
+});
+
+/** 状态栏样例：手动构造满段，用于固定「拼接 + 降级」的结构基线。 */
+const BAR_SAMPLE: StatusBarSegment[] = [
+  { id: "model", text: "model Atria-Dawn-Preview(high)" },
+  { id: "path", text: "dir project" },
+  { id: "git", text: "git main" },
+  { id: "context", text: "ctx 18.8% (48k/256k)" },
+  { id: "cost", text: "cost $0.32" },
+  { id: "speed", text: "tps 18.4 tps" },
+];
+
+samples.push({
+  heading: "底部状态栏（全段）",
+  note: "位于输入框下方；宽度不足时从右往左整段丢弃，永不截断段内文字",
+  lines: [composeStatusBar(BAR_SAMPLE, 110)],
+});
+
+samples.push({
+  heading: "底部状态栏（窄宽度降级）",
+  note: "宽度 70：先丢速度与费用，再丢上下文，保留模型 / 目录 / 分支",
+  lines: [composeStatusBar(BAR_SAMPLE, 70)],
 });
 
 samples.push({

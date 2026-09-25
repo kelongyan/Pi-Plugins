@@ -13,11 +13,16 @@ import * as PiAgent from "@earendil-works/pi-coding-agent";
 import { Editor, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { IDENTITY_THEME, type ThemeLike } from "../../core/theme.ts";
 import { sanitizeTerminalText } from "../../utils/terminal-sanitizer.ts";
-import { MIN_FRAME_WIDTH, renderEditorFrame, type EditorFrameStatus } from "./frame.ts";
+import { renderEditorFrame, type EditorFrameStatus } from "./frame.ts";
 
 export type FramedEditorState = {
   getTheme(): ThemeLike;
+  /** 线框顶边的状态（thinking / 上下文）。 */
   getStatus(): EditorFrameStatus;
+  /** 是否绘制线框（关闭时只输出原生 editor 内容）。 */
+  isFrameEnabled(): boolean;
+  /** 状态栏整行（已含前导空格）；返回空表示不显示。 */
+  getStatusBarLine(width: number): string | undefined;
 };
 
 export type FramedEditorOptions = {
@@ -29,6 +34,47 @@ function asLines(value: unknown): string[] {
   if (Array.isArray(value)) return value.map(String);
   if (value === undefined || value === null) return [];
   return [String(value)];
+}
+
+/**
+ * 统一渲染路径：线框（可选）+ 原生内容 + 弹出行 + 状态栏（可选）。
+ *
+ * 两个基类分支（CustomEditor / Editor）共用它，避免逻辑漂移。
+ * 宽度过窄的降级由 `renderEditorFrame` 与 `composeStatusBar` 各自负责。
+ */
+function renderWithFrame(
+  callSuperRender: (width: number) => unknown,
+  width: number,
+  state: FramedEditorState,
+): string[] {
+  const numericWidth = Number.isFinite(width) ? Math.floor(width) : 0;
+  const frameEnabled = state.isFrameEnabled();
+
+  // 线框会内缩 4 列；关闭线框时按原宽渲染，避免内容无谓变窄。
+  const innerWidth = frameEnabled ? Math.max(1, numericWidth - 4) : numericWidth;
+  const { editorLines, popupLines } = splitNativeEditorRender(asLines(callSuperRender(innerWidth)));
+
+  const out: string[] = [];
+  if (frameEnabled) {
+    out.push(
+      ...renderEditorFrame({
+        editorLines,
+        width: numericWidth,
+        theme: state.getTheme(),
+        status: state.getStatus(),
+      }),
+    );
+  } else {
+    out.push(...editorLines);
+  }
+
+  // 补全列表紧贴输入区；状态栏始终在最底。
+  out.push(...fitPopupLines(popupLines, numericWidth));
+
+  const statusBar = state.getStatusBarLine(numericWidth);
+  if (statusBar) out.push(statusBar);
+
+  return out;
 }
 
 /**
@@ -50,21 +96,7 @@ export function createFramedEditor(
   if (typeof Base === "function") {
     class ZxdlFramedEditor extends (Base as any) {
       render(width: number): string[] {
-        const numericWidth = Number.isFinite(width) ? Math.floor(width) : 0;
-        if (numericWidth < MIN_FRAME_WIDTH) return asLines(super.render(numericWidth));
-
-        const innerWidth = Math.max(1, numericWidth - 4);
-        const { editorLines, popupLines } = splitNativeEditorRender(asLines(super.render(innerWidth)));
-
-        return [
-          ...renderEditorFrame({
-            editorLines,
-            width: numericWidth,
-            theme: state.getTheme(),
-            status: state.getStatus(),
-          }),
-          ...fitPopupLines(popupLines, numericWidth),
-        ];
+        return renderWithFrame((innerWidth) => super.render(innerWidth), width, state);
       }
     }
     // 基类是运行时注入的，TS 无法推断其构造签名，这里显式放宽。
@@ -74,21 +106,7 @@ export function createFramedEditor(
 
   class ZxdlFallbackEditor extends Editor {
     render(width: number): string[] {
-      const numericWidth = Number.isFinite(width) ? Math.floor(width) : 0;
-      if (numericWidth < MIN_FRAME_WIDTH) return asLines(super.render(numericWidth));
-
-      const innerWidth = Math.max(1, numericWidth - 4);
-      const { editorLines, popupLines } = splitNativeEditorRender(asLines(super.render(innerWidth)));
-
-      return [
-        ...renderEditorFrame({
-          editorLines,
-          width: numericWidth,
-          theme: state.getTheme(),
-          status: state.getStatus(),
-        }),
-        ...fitPopupLines(popupLines, numericWidth),
-      ];
+      return renderWithFrame((innerWidth) => super.render(innerWidth), width, state);
     }
   }
   return new ZxdlFallbackEditor(tui as any, theme as any, { paddingX: 0 } as any);

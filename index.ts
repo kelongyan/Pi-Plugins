@@ -23,7 +23,7 @@ import {
 } from "./src/core/pi-compat.ts";
 import { ResourceStack, TuiOwnership } from "./src/core/session.ts";
 import { resolveTheme } from "./src/core/theme.ts";
-import { InputFrameRuntime } from "./src/features/input-frame/index.ts";
+import { InputFrameRuntime, StreamSpeedTracker } from "./src/features/input-frame/index.ts";
 import { installMessageFrame, type MessageFrameHandle } from "./src/features/message-frame/index.ts";
 import { cloneSettings, isFeatureActive, type ZxdlSettings } from "./src/settings/schema.ts";
 import {
@@ -43,7 +43,10 @@ export function registerZxdlExtension(pi: ExtensionAPI, deps: ZxdlRuntimeDeps = 
     deps.inspectCapabilities ?? ((): PiRuntimeCapabilities => inspectPiRuntimeCapabilities());
 
   const ownership = new TuiOwnership();
-  const inputFrameRuntime = new InputFrameRuntime();
+  const speedTracker = new StreamSpeedTracker();
+  const inputFrameRuntime = new InputFrameRuntime({
+    getTokensPerSecond: () => speedTracker.tokensPerSecond,
+  });
   let resources = new ResourceStack();
   let settings: ZxdlSettings = readPersistedSettings();
   let capabilities: PiRuntimeCapabilities | undefined;
@@ -86,17 +89,19 @@ export function registerZxdlExtension(pi: ExtensionAPI, deps: ZxdlRuntimeDeps = 
       console.debug?.("[pi-zxdl] message-frame 已卸载（设置关闭或能力不满足）");
     }
 
-    // ② 输入框线框（需要 Pi 的 fullscreen TUI 模式）
-    const wantsInputFrame =
-      isFeatureActive(settings, "inputFrame") && Boolean(capabilities?.inputFrame.supported);
+    // ② 输入框线框 + 底部状态栏（线框需要 Pi 的 fullscreen TUI 模式）
+    const canTakeEditor = Boolean(capabilities?.inputFrame.supported);
+    const wantsInputFrame = isFeatureActive(settings, "inputFrame") && canTakeEditor;
+    const wantsStatusBar = settings.enabled && settings.statusBar.enabled && canTakeEditor;
 
-    if (currentCtx && wantsInputFrame) {
-      inputFrameRuntime.bindSession(currentCtx);
-      inputFrameRuntime.configure({ ...settings.inputFrame, enabled: true });
-    } else {
-      // 未启用或能力不满足：确保不残留接管，并保留用户偏好。
-      inputFrameRuntime.configure({ ...settings.inputFrame, enabled: false });
-    }
+    if (currentCtx) inputFrameRuntime.bindSession(currentCtx);
+    inputFrameRuntime.configure({
+      ...settings.inputFrame,
+      enabled: wantsInputFrame,
+      statusBarEnabled: wantsStatusBar,
+      statusBarIcons: settings.statusBar.icons,
+      statusBarSegments: settings.statusBar.segments,
+    });
   };
 
   /** 保存配置：先落盘，再应用。写盘失败只记录，不阻断本次生效。 */
@@ -121,6 +126,7 @@ export function registerZxdlExtension(pi: ExtensionAPI, deps: ZxdlRuntimeDeps = 
     resources = new ResourceStack();
     currentCtx = ctx;
     frameHandle = undefined;
+    speedTracker.reset();
     settings = readPersistedSettings();
     capabilities = inspectCapabilities();
 
@@ -137,6 +143,18 @@ export function registerZxdlExtension(pi: ExtensionAPI, deps: ZxdlRuntimeDeps = 
     if (appliedTheme) console.debug?.(`[pi-zxdl] 已应用自带主题：${appliedTheme}`);
 
     applyRuntime();
+  });
+
+  // 流式速度跟踪：只在持锁的 TUI 会话里累计。
+  pi.on("message_update", (event: any) => {
+    if (!ownership.isOwner()) return;
+    speedTracker.onStream(event?.message?.usage);
+  });
+
+  pi.on("agent_end", () => {
+    if (!ownership.isOwner()) return;
+    // 一轮结束：冻结速度（空闲时显示上一次的值，而不是瞬间归零）。
+    speedTracker.onIdle();
   });
 
   pi.on("session_shutdown", () => {

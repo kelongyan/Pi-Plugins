@@ -7,6 +7,7 @@
  * 说明：这里只做静态文本，不做任何动画或彩虹效果。
  */
 
+import { homedir } from "node:os";
 import type { ThemeLike } from "../../core/theme.ts";
 import { safeFg } from "../../core/theme.ts";
 import type { EditorFrameStatus } from "./frame.ts";
@@ -175,4 +176,31 @@ export function formatTokens(value: number): string {
 function clampPercent(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.max(0, Math.min(100, value));
+}
+
+/** 读取当前工作目录（官方 ExtensionContext 提供 cwd）。 */
+export function readCwd(ctx: unknown): string | undefined {
+  try {
+    const cwd = (ctx as { cwd?: unknown } | undefined)?.cwd;
+    return typeof cwd === "string" && cwd.length > 0 ? cwd : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * 把路径压缩成适合窄空间的短形式：家目录缩写为 `~`，过长时只保留尾部两级。
+ */
+export function shortenPath(cwd: string, maxLength = 24): string {
+  let text = cwd.replace(/\\/g, "/");
+  const home = (process.env.HOME || process.env.USERPROFILE || homedir() || "").replace(/\\/g, "/");
+
+  if (home && text.startsWith(home)) {
+    text = `~${text.slice(home.length)}`;
+  }
+  if (text.length <= maxLength) return text;
+
+  const parts = text.split("/").filter((part) => part.length > 0);
+  if (parts.length <= 2) return text;
+  return `…/${parts.slice(-2).join("/")}`;
 }
