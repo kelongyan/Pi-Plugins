@@ -52,8 +52,23 @@ export function formatStatus(status: ZxdlStatus): string {
   const { settings, capabilities, active, failures } = status;
   const lines: string[] = [];
 
-  lines.push(`pi-zxdl v0.1.0 · ${active ? "已接管 TUI 渲染资源" : "未接管（非交互式会话或未启动）"}`);
+  lines.push(`pi-zxdl v0.5.0 · ${active ? "已接管 TUI 渲染资源" : "未接管（非交互式会话或未启动）"}`);
   lines.push(`总开关：${onOff(settings.enabled)}`);
+  lines.push(
+    `对话流风格：${settings.style === "boxed" ? "经典（外框）" : "极简（锚点）"}` +
+      (settings.style === "minimal"
+        ? `（assistant ${settings.assistantAnchor ? "带 ● 锚点" : "裸排"} / bash ${settings.bashFrame ? "保留外框" : "单行动态"}）`
+        : ""),
+  );
+  lines.push(
+    `Jump to latest 提示：${settings.hideScrollToEnd ? "已隐藏" : "Pi 原生行为"}` +
+      `（用户消息 › 箭头锚点，boxed 风格仍为外框）`,
+  );
+  lines.push(`edit 代码高亮：${onOff(settings.diffHighlight)}`);
+  lines.push(
+    `④ 启动画面：${onOff(settings.startup.enabled)}（自定义 logo header` +
+      `；前置：Pi Quiet startup ${settings.startup.enabled ? "需已开启" : "无关"}）`,
+  );
   lines.push(
     `① 消息外框：${onOff(settings.messageFrame.enabled)}` +
       `（assistant ${settings.messageFrame.assistantFrame ? "加框" : "不加框"}` +

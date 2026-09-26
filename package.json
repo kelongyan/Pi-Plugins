@@ -1,6 +1,6 @@
 {
   "name": "pi-zxdl",
-  "version": "0.1.0",
+  "version": "0.5.0",
   "type": "module",
   "private": true,
   "description": "Pi coding agent TUI enhancement: message frames, thinking frames, and a framed input editor.",

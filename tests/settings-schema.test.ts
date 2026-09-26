@@ -41,9 +41,35 @@ test("thinking 只保留 enabled 开关，不残留任何动画字段", () => {
   );
 });
 
+test("style 字段只接受白名单值，其余回退 minimal", () => {
+  assert.equal(normalizeSettings({ style: "boxed" }).style, "boxed");
+  assert.equal(normalizeSettings({ style: "minimal" }).style, "minimal");
+  assert.equal(normalizeSettings({ style: "fancy" }).style, "minimal");
+  assert.equal(normalizeSettings({ style: 42 }).style, "minimal");
+  assert.equal(normalizeSettings({}).style, DEFAULT_SETTINGS.style);
+});
+
+test("assistantAnchor 与 bashFrame 按布尔钳制", () => {
+  const result = normalizeSettings({ assistantAnchor: true, bashFrame: "yes" });
+  assert.equal(result.assistantAnchor, true);
+  assert.equal(result.bashFrame, DEFAULT_SETTINGS.bashFrame);
+});
+
+test("hideScrollToEnd 默认开启（隐藏 Pi 原生滚动提示），布尔钳制", () => {
+  assert.equal(DEFAULT_SETTINGS.hideScrollToEnd, true);
+  assert.equal(normalizeSettings({ hideScrollToEnd: false }).hideScrollToEnd, false);
+  assert.equal(normalizeSettings({ hideScrollToEnd: "no" }).hideScrollToEnd, DEFAULT_SETTINGS.hideScrollToEnd);
+});
+
 test("完整合法输入被原样保留", () => {
   const input = {
     enabled: false,
+    style: "boxed",
+    assistantAnchor: true,
+    bashFrame: true,
+    hideScrollToEnd: false,
+    diffHighlight: false,
+    startup: { enabled: false },
     messageFrame: { enabled: false, assistantFrame: false, userFrame: true },
     thinking: { enabled: true },
     inputFrame: {

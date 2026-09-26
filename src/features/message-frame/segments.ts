@@ -14,6 +14,7 @@
  * 由调用方回退到「整条一个框」的原始行为，不会让渲染失败。
  */
 
+import { SYMBOLS } from "./styles.ts";
 import { renderMessageBox } from "./chrome.ts";
 import type { ThemeLike } from "../../core/theme.ts";
 
@@ -158,6 +159,66 @@ export function renderAssistantSegments(
     // 结构不符或渲染异常时静默回退，绝不影响宿主渲染。
     return undefined;
   }
+}
+
+/**
+ * minimal 风格的 assistant 分段：思考组前加一行 `◆ Thinking` 锚点，正文组裸排。
+ *
+ * 仅处理「思考 + 正文」混合消息（单组消息交给调用方走原有路径）。
+ * 思考内容保持 Pi 原生渲染（斜体灰、全宽）；折叠态下原生只有一行 "Thinking…" 文案，
+ * 与锚点重复，直接吞掉。
+ *
+ * 返回 undefined 表示结构不匹配（调用方回退裸排，与 boxed 分段的安全网一致）。
+ */
+export function renderAssistantSegmentsMinimal(
+  instance: unknown,
+  width: number,
+  theme: ThemeLike,
+): string[] | undefined {
+  try {
+    const holder = instance as { lastMessage?: unknown; contentContainer?: { children?: unknown } };
+    const kinds = expectedSegmentKinds(holder?.lastMessage);
+    if (kinds.length === 0) return undefined;
+
+    const groups = groupContentChildren(holder?.contentContainer?.children, kinds);
+    if (!groups) return undefined;
+    if (groups.length < 2) return undefined;
+
+    const innerWidth = Math.max(1, Math.floor(width));
+    const output: string[] = [];
+
+    for (const [index, group] of groups.entries()) {
+      const lines: string[] = [];
+      for (const child of group.children) {
+        const render = (child as { render?: (w: number) => unknown } | undefined)?.render;
+        if (typeof render !== "function") continue;
+        lines.push(...asLines(render.call(child, innerWidth)));
+      }
+
+      if (index > 0) output.push("");
+
+      if (group.kind === "thinking") {
+        output.push(theme.fg("muted", `${SYMBOLS.thinking} Thinking`));
+        output.push(...lines.filter((line) => !isHiddenThinkingLabelLine(line)));
+      } else {
+        output.push(...lines);
+      }
+    }
+
+    return output;
+  } catch {
+    // 结构不符或渲染异常时静默回退，绝不影响宿主渲染。
+    return undefined;
+  }
+}
+
+/** 折叠态思考的原生占位行（"Thinking…" / "Thinking complete"），minimal 下由锚点行替代。 */
+function isHiddenThinkingLabelLine(line: string): boolean {
+  const text = String(line)
+    // 剥 SGR 后再匹配，避免着色影响判定。
+    .replace(/\x1b\[[0-9;:]*m/gu, "")
+    .trim();
+  return /^Thinking(\.{3}|…| complete)?$/u.test(text);
 }
 
 /** 补回 Pi 原生 render 会加的 OSC133 边界标记（有工具调用时不加）。 */

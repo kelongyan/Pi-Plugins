@@ -13,9 +13,19 @@
 
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { isImageEscapeLine } from "../../utils/image-escape.ts";
+import { stripBackgroundSgr, stripUiHints } from "../../utils/sgr.ts";
 import { sanitizeTerminalText } from "../../utils/terminal-sanitizer.ts";
 import { isBlankLine, padToWidth, safeWidth } from "../../utils/width.ts";
-import { frameLabel, frameStyle, type MessageKind, type ThemeLike, type ToolStatus } from "./styles.ts";
+import {
+  anchorName,
+  anchorPresentation,
+  frameLabel,
+  frameStyle,
+  SYMBOLS,
+  type MessageKind,
+  type ThemeLike,
+  type ToolStatus,
+} from "./styles.ts";
 
 /** 低于该宽度时放弃画框，回退为简单截断。 */
 export const MIN_BOX_WIDTH = 8;
@@ -41,6 +51,8 @@ export type RenderBoxOptions = {
   status?: ToolStatus;
   /** 底边右侧的耗时文本（调用方负责着色）。 */
   elapsedText?: string;
+  /** 剥掉内容行的背景色——user 的原生背景条在框内会形成双重框感。 */
+  stripBackground?: boolean;
 };
 
 function styleText(theme: ThemeLike, token: string, text: string): string {
@@ -182,9 +194,13 @@ function sanitizeContentLines(lines: readonly string[]): string[] {
   );
 }
 
-/** 只裁掉首尾的空行；正文中间的空行保持原样。用户消息不裁剪（可能是刻意留白）。 */
+/**
+ * 只裁掉首尾的空行；正文中间的空行保持原样。
+ *
+ * user 一并裁剪：Pi 原生用户消息组件的 Box 会在内容上下各垫一行背景 pad 行
+ * （`new Box(outputPad, 1, bgFn)`），外框保留它们会虚大一圈（实机确认）。
+ */
 function trimBoundaryBlankLines(kind: MessageKind, lines: readonly string[]): string[] {
-  if (kind === "user") return [...lines];
   const normalized = [...lines];
   while (normalized.length > 0 && !isImageEscapeLine(normalized[0] ?? "") && isBlankLine(normalized[0] ?? "")) {
     normalized.shift();
@@ -223,7 +239,10 @@ export function renderMessageBox(
 
   const markers = trimBoundaryBlankLines(kind, contentLines);
   const rawLines = sanitizeContentLines(markers);
-  if (isEmptyMessage(kind, rawLines)) return [];
+  const visibleLines = options.stripBackground
+    ? rawLines.map((line) => (isImageEscapeLine(line) ? line : stripBackgroundSgr(line)))
+    : rawLines;
+  if (isEmptyMessage(kind, visibleLines)) return [];
 
   const style = frameStyle(kind);
   const label = options.label ?? frameLabel(kind, options.toolName, options.status);
@@ -231,7 +250,7 @@ export function renderMessageBox(
 
   const out: string[] = [buildTopBorder(label, boxWidth, theme, style.border, style.label)];
 
-  for (const raw of rawLines) {
+  for (const raw of visibleLines) {
     for (const part of String(raw).split("\n")) {
       if (isImageEscapeLine(part)) {
         // 图片协议行整块透传，不参与包装与着色。
@@ -296,4 +315,192 @@ function firstVisibleLine(lines: readonly string[]): string {
     }
   }
   return "Thinking complete";
+}
+
+// ---------------------------------------------------------------------------
+// minimal（锚点）渲染层：对话流零边框，层级靠「符号锚点行 + │ 竖线引导 + 空行」。
+//
+// 与 boxed（renderMessageBox / renderThinkingBox）并列的第二套呈现：
+// - 锚点行：`符号 主体名 · 摘要`，一行可扫读，宽度永不超限
+// - gutter：锚点之后的细节行统一加 muted 色 `│ ` 前缀，右侧开放
+// - 图片协议行依旧整块透传
+// ---------------------------------------------------------------------------
+
+/** 低于该宽度时不做锚点排版，回退简单截断。 */
+export const MIN_ANCHOR_WIDTH = 6;
+
+/** gutter 前缀（muted 色）。 */
+const GUTTER_PREFIX = "│ ";
+
+export type AnchorRenderOptions = {
+  theme: ThemeLike;
+  /** 工具名（用于锚点主体）。 */
+  toolName?: string;
+  /** 工具执行状态（用于符号与配色）。 */
+  status?: ToolStatus;
+  /** 附加在锚点行尾的耗时文本（调用方负责着色）。 */
+  elapsedText?: string;
+  /**
+   * 调用方提供的摘要（如从工具 args 提取），优先于内容首行。
+   * 未提供时回退「内容首行清理 + 首词与主体名去重」。
+   */
+  summaryOverride?: string;
+};
+
+/** 摘要首词与主体名相同时去掉（原生标题行会重复工具名）。 */
+function dedupeSummaryLead(summary: string, name: string | undefined): string {
+  if (!name || !summary) return summary;
+  const firstWord = summary.split(/\s+/u, 1)[0] ?? "";
+  if (firstWord && firstWord.toLowerCase() === name.toLowerCase()) {
+    return summary.slice(firstWord.length).trimStart();
+  }
+  return summary;
+}
+
+/** 把内容行展开成「逐行」数组（边界裁剪规则与 boxed 的 renderMessageBox 一致）。 */
+function flattenContentLines(kind: MessageKind, lines: readonly string[]): string[] {
+  const clean = sanitizeContentLines(trimBoundaryBlankLines(kind, lines));
+  const flat: string[] = [];
+  for (const raw of clean) flat.push(...String(raw).split("\n"));
+  return flat;
+}
+
+/** truncateToWidth 关闭 keepAnsi 时会附加尾部 reset；后续还要套主题色，剥掉它避免提前断色。 */
+function trimTrailingReset(text: string): string {
+  return text.endsWith("\x1b[0m") ? text.slice(0, -"\x1b[0m".length) : text;
+}
+
+/** 锚点行：`符号 [主体名] [· 摘要] [· 耗时]`，整体宽度永不超限。导出供 bash-inline 复用同一视觉语言。 */
+export function buildAnchorLine(
+  symbol: string,
+  symbolToken: string,
+  name: string | undefined,
+  nameToken: string,
+  summary: string | undefined,
+  summaryToken: string,
+  elapsedText: string | undefined,
+  width: number,
+  theme: ThemeLike,
+): string {
+  const prefix = `${symbol} `;
+  let used = visibleWidth(prefix);
+
+  let styledName = "";
+  if (name) {
+    styledName = trimTrailingReset(truncateToWidth(name, Math.max(0, width - used), "", false));
+    used += visibleWidth(styledName);
+  }
+
+  const elapsed = elapsedText?.trim();
+  const elapsedWidth = elapsed ? visibleWidth(` · ${elapsed}`) : 0;
+  // 有主体名时用 · 分隔；无主体名时 prefix 已带空格，摘要直接跟随（避免出现双 ·）。
+  const sep = name ? " · " : "";
+  const summaryBudget = Math.max(
+    0,
+    width - used - (summary || elapsed ? visibleWidth(sep) : 0) - elapsedWidth,
+  );
+  const visibleSummary = summary ? trimTrailingReset(truncateToWidth(summary, summaryBudget, "", false)) : "";
+
+  let out = styleText(theme, symbolToken, prefix);
+  if (styledName) out += styleTextWithEmbeddedForeground(theme, nameToken, styledName);
+  if (visibleSummary) {
+    out +=
+      styleText(theme, summaryToken, sep) +
+      styleTextWithEmbeddedForeground(theme, summaryToken, visibleSummary);
+  }
+  if (elapsed) {
+    out += styleText(theme, summaryToken, `${visibleSummary ? " · " : sep}${elapsed}`);
+  }
+  return out;
+}
+
+/**
+ * gutter 行：`│ 内容`，内容保留原有着色；图片协议行整块透传。
+ * 竖线默认 muted；bash-inline 按 shell 执行状态传入 success / error 实现结果变色，
+ * 思考等其他呈现不传参，保持灰色不变。
+ */
+export function buildGutterLine(
+  line: string,
+  width: number,
+  theme: ThemeLike,
+  gutterToken: string = "muted",
+): string {
+  if (isImageEscapeLine(line)) return String(line);
+  const innerWidth = Math.max(0, width - visibleWidth(GUTTER_PREFIX));
+  const clipped = truncateToWidth(sanitizeTerminalText(line, { preserveSgr: true }), innerWidth, "", false);
+  return styleText(theme, gutterToken, GUTTER_PREFIX) + clipped;
+}
+
+/**
+ * minimal 风格的消息渲染。
+ *
+ * - user：`› ` 锚点 + 内容，前后各一行空行（band），折行按前缀宽度对齐
+ * - thinking / 工具 / bash：锚点行（首行作摘要）+ 其余行进 gutter
+ * - 摘要类（custom/skill/compaction/branch）：`· ` 弱锚点 + gutter
+ * - 返回空数组表示无可展示内容（与 boxed 的空消息口径一致）
+ */
+export function renderAnchoredMessage(
+  kind: MessageKind,
+  contentLines: readonly string[],
+  width: number,
+  options: AnchorRenderOptions,
+): string[] {
+  const { theme } = options;
+  const boxWidth = safeWidth(width);
+
+  if (boxWidth < MIN_ANCHOR_WIDTH) return fallbackLines(contentLines, boxWidth);
+
+  // 工具与 bash 的原生输出行带背景色（toolSuccessBg 等），minimal 下统一剥掉，
+  // 呈现为「深底 + 前景色 + │ 引导」；用户消息的背景条是分隔手段，保留。
+  const stripBg =
+    kind === "toolPending" || kind === "toolSuccess" || kind === "toolError" || kind === "bash";
+
+  const flat = flattenContentLines(kind, contentLines);
+  const visible = stripBg ? flat.map((line) => (isImageEscapeLine(line) ? line : stripBackgroundSgr(line))) : flat;
+  if (isEmptyMessage(kind, visible)) return [];
+
+  // —— user：固定蓝色（accent）竖线引用块，无符号、无背景 ——
+  // Pi 原生 userMessageBg 背景条从行首铺满，行首符号会被顶掉（› 和 > 实机均不显示），
+  // 因此剥掉原生背景、内容整体走 accent 竖线 gutter；与思考（灰）/ shell（绿红）竖线区分。
+  if (kind === "user") {
+    return visible.map((raw) => {
+      if (isImageEscapeLine(raw)) return String(raw);
+      const inner = trimTrailingReset(stripBackgroundSgr(sanitizeTerminalText(raw, { preserveSgr: true }))).trim();
+      return buildGutterLine(inner, boxWidth, theme, "accent");
+    });
+  }
+
+  // —— thinking：锚点行 + gutter（折叠态内容只有一行时自然只剩锚点行） ——
+  // —— 工具 / bash：状态符号锚点 + gutter ——
+  // —— 摘要类：`· ` 弱锚点 + gutter ——
+  const presentation = anchorPresentation(kind, options.status);
+  const name = anchorName(kind, options.toolName);
+
+  // 摘要：调用方 override（args 提取）优先；回退内容首行，剥 UI 提示并去重工具名。
+  const rawSummary =
+    options.summaryOverride && options.summaryOverride.trim()
+      ? options.summaryOverride
+      : firstVisibleLine(visible.length > 0 ? [visible[0] ?? ""] : []);
+  const summary = dedupeSummaryLead(stripUiHints(rawSummary), name);
+
+  const anchor = buildAnchorLine(
+    presentation.symbol,
+    presentation.style.anchor,
+    name,
+    presentation.style.name,
+    summary === "Thinking complete" && kind !== "thinking" ? "" : summary,
+    presentation.style.summary,
+    options.elapsedText,
+    boxWidth,
+    theme,
+  );
+
+  const out: string[] = [anchor];
+  for (const raw of visible.slice(1)) out.push(buildGutterLine(raw, boxWidth, theme));
+  return out;
+}
+
+/** assistantAnchor 开启时：一行 `●` 锚点 + 原生正文（不加框、不改写正文）。 */
+export function renderAssistantAnchorLine(theme: ThemeLike, nativeLines: readonly string[]): string[] {
+  return [styleText(theme, "accent", SYMBOLS.running), ...nativeLines.map(String)];
 }

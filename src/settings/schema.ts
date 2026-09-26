@@ -51,9 +51,34 @@ export type StatusBarSettings = {
   };
 };
 
+export type StartupSettings = {
+  /**
+   * 自定义启动画面（像素 logo header）总开关。
+   * 前置条件：Pi 设置 quietStartup 已开启，否则原生横幅会与本 header 叠加。
+   */
+  enabled: boolean;
+};
+
+/** 对话流呈现风格。minimal = 锚点 + gutter（零边框）；boxed = 经典外框（兼容旧行为）。 */
+export type FrameStyleSetting = "minimal" | "boxed";
+
 export type ZxdlSettings = {
   /** 总开关。关闭后所有功能失效，但保留各子项偏好。 */
   enabled: boolean;
+  /** 对话流风格。输入框线框与底部状态栏不受它影响（均为独立保留项）。 */
+  style: FrameStyleSetting;
+  /** minimal 下 assistant 正文前是否加一行 ● 锚点（默认关 = 完全裸排）。 */
+  assistantAnchor: boolean;
+  /** minimal 下 bash 是否保留经典单框。 */
+  bashFrame: boolean;
+  /**
+   * 隐藏 Pi fullscreen 模式的「↓ Jump to latest message」滚动提示。
+   * 实现：清除 TuiAltScreen 实例的 scrollToEndIndicator 属性（Pi 无官方开关）。
+   */
+  hideScrollToEnd: boolean;
+  /** edit 工具 diff 视图是否做行内语法高亮（复用 Pi 官方 highlightCode）。 */
+  diffHighlight: boolean;
+  startup: StartupSettings;
   messageFrame: MessageFrameSettings;
   thinking: ThinkingSettings;
   inputFrame: InputFrameSettings;
@@ -62,6 +87,12 @@ export type ZxdlSettings = {
 
 export const DEFAULT_SETTINGS: ZxdlSettings = {
   enabled: true,
+  style: "minimal",
+  assistantAnchor: false,
+  bashFrame: false,
+  hideScrollToEnd: true,
+  diffHighlight: true,
+  startup: { enabled: true },
   messageFrame: { enabled: true, assistantFrame: true, userFrame: true },
   thinking: { enabled: true },
   inputFrame: {
@@ -113,6 +144,15 @@ export function normalizeSettings(value: unknown): ZxdlSettings {
 
   return {
     enabled: pickBool(root.enabled, DEFAULT_SETTINGS.enabled),
+    style: pickEnum(root.style, ["minimal", "boxed"] as const, DEFAULT_SETTINGS.style),
+    assistantAnchor: pickBool(root.assistantAnchor, DEFAULT_SETTINGS.assistantAnchor),
+    bashFrame: pickBool(root.bashFrame, DEFAULT_SETTINGS.bashFrame),
+    hideScrollToEnd: pickBool(root.hideScrollToEnd, DEFAULT_SETTINGS.hideScrollToEnd),
+    diffHighlight: pickBool(root.diffHighlight, DEFAULT_SETTINGS.diffHighlight),
+    startup: (() => {
+      const startup = asRecord(root.startup);
+      return { enabled: pickBool(startup.enabled, DEFAULT_SETTINGS.startup.enabled) };
+    })(),
     messageFrame: {
       enabled: pickBool(frame.enabled, DEFAULT_SETTINGS.messageFrame.enabled),
       assistantFrame: pickBool(frame.assistantFrame, DEFAULT_SETTINGS.messageFrame.assistantFrame),
@@ -146,6 +186,12 @@ export function normalizeSettings(value: unknown): ZxdlSettings {
 export function cloneSettings(settings: ZxdlSettings): ZxdlSettings {
   return {
     enabled: settings.enabled,
+    style: settings.style,
+    assistantAnchor: settings.assistantAnchor,
+    bashFrame: settings.bashFrame,
+    hideScrollToEnd: settings.hideScrollToEnd,
+    diffHighlight: settings.diffHighlight,
+    startup: { ...settings.startup },
     messageFrame: { ...settings.messageFrame },
     thinking: { ...settings.thinking },
     inputFrame: { ...settings.inputFrame },

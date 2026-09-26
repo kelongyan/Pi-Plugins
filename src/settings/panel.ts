@@ -12,7 +12,7 @@ import { matchesKey, truncateToWidth, visibleWidth } from "@earendil-works/pi-tu
 import type { ThemeLike } from "../core/theme.ts";
 import type { ZxdlSettings } from "./schema.ts";
 
-export type SettingsItem = {
+export type ToggleItem = {
   id: string;
   label: string;
   /** 缩进层级，用于表达从属关系。 */
@@ -20,6 +20,21 @@ export type SettingsItem = {
   get(settings: ZxdlSettings): boolean;
   set(settings: ZxdlSettings, value: boolean): void;
 };
+
+/** 枚举项：Enter/空格在 values 中循环切换。 */
+export type ChoiceItem = {
+  id: string;
+  label: string;
+  depth: number;
+  kind: "choice";
+  values: readonly string[];
+  /** 值 → 面板显示文本。 */
+  labels: Readonly<Record<string, string>>;
+  getChoice(settings: ZxdlSettings): string;
+  setChoice(settings: ZxdlSettings, value: string): void;
+};
+
+export type SettingsItem = ToggleItem | ChoiceItem;
 
 /** 面板里的开关清单，顺序即显示顺序。 */
 export const SETTINGS_ITEMS: readonly SettingsItem[] = [
@@ -30,6 +45,63 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
     get: (settings) => settings.enabled,
     set: (settings, value) => {
       settings.enabled = value;
+    },
+  },
+  {
+    id: "style",
+    label: "对话流风格",
+    depth: 1,
+    kind: "choice",
+    values: ["minimal", "boxed"],
+    labels: { minimal: "极简（锚点）", boxed: "经典（外框）" },
+    getChoice: (settings) => settings.style,
+    setChoice: (settings, value) => {
+      settings.style = value === "boxed" ? "boxed" : "minimal";
+    },
+  },
+  {
+    id: "assistantAnchor",
+    label: "assistant 加 ● 锚点",
+    depth: 2,
+    get: (settings) => settings.assistantAnchor,
+    set: (settings, value) => {
+      settings.assistantAnchor = value;
+    },
+  },
+  {
+    id: "bashFrame",
+    label: "bash 保留外框",
+    depth: 2,
+    get: (settings) => settings.bashFrame,
+    set: (settings, value) => {
+      settings.bashFrame = value;
+    },
+  },
+  {
+    id: "hideScrollToEnd",
+    label: "隐藏 Jump to latest 提示",
+    depth: 1,
+    get: (settings) => settings.hideScrollToEnd,
+    set: (settings, value) => {
+      settings.hideScrollToEnd = value;
+    },
+  },
+  {
+    id: "diffHighlight",
+    label: "edit 代码高亮",
+    depth: 1,
+    get: (settings) => settings.diffHighlight,
+    set: (settings, value) => {
+      settings.diffHighlight = value;
+    },
+  },
+  {
+    id: "startupHeader",
+    label: "自定义启动画面（需 Pi Quiet startup）",
+    depth: 1,
+    get: (settings) => settings.startup.enabled,
+    set: (settings, value) => {
+      settings.startup.enabled = value;
     },
   },
   {
@@ -181,6 +253,16 @@ export const SETTINGS_ITEMS: readonly SettingsItem[] = [
 const TITLE = " pi-zxdl 设置 ";
 const HINT = "  ↑↓ 选择 · Enter/空格 切换 · Esc 关闭";
 
+function isChoiceItem(item: SettingsItem): item is ChoiceItem {
+  return "kind" in item && item.kind === "choice";
+}
+
+/** 枚举项的显示文本。 */
+function choiceDisplay(item: ChoiceItem, settings: ZxdlSettings): string {
+  const current = item.getChoice(settings);
+  return item.labels[current] ?? current;
+}
+
 /**
  * 纯渲染：产出整屏行，每行显示宽度严格等于 width。
  */
@@ -210,10 +292,10 @@ export function renderPanelLines(
 
   for (const [index, item] of SETTINGS_ITEMS.entries()) {
     const selected = index === selectedIndex;
-    const marker = selected ? "›" : " ";
+    const marker = selected ? ">" : " ";
     const indent = "  ".repeat(item.depth);
     const label = `${marker} ${indent}${item.label}`;
-    const value = item.get(settings) ? "开" : "关";
+    const value = isChoiceItem(item) ? choiceDisplay(item, settings) : item.get(settings) ? "开" : "关";
     const gap = Math.max(1, inner - visibleWidth(label) - visibleWidth(value) - 1);
     out.push(contentLine(`${label}${" ".repeat(gap)}${value}`, selected));
   }
@@ -270,7 +352,15 @@ export class SettingsPanel {
     if (matchesKey(data, "enter") || matchesKey(data, "space") || data === " ") {
       const item = SETTINGS_ITEMS[this.selectedIndex];
       if (item) {
-        item.set(this.settings, !item.get(this.settings));
+        if (isChoiceItem(item)) {
+          // 枚举项：循环切到下一个值。
+          const current = item.getChoice(this.settings);
+          const index = item.values.indexOf(current);
+          const next = item.values[(index + 1) % item.values.length] ?? current;
+          item.setChoice(this.settings, next);
+        } else {
+          item.set(this.settings, !item.get(this.settings));
+        }
         this.callbacks.onChange(this.settings);
       }
       return;

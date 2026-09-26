@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { visibleWidth } from "@earendil-works/pi-tui";
 import type { ThemeLike } from "../src/core/theme.ts";
-import { SETTINGS_ITEMS, renderPanelLines } from "../src/settings/panel.ts";
+import { SETTINGS_ITEMS, SettingsPanel, renderPanelLines } from "../src/settings/panel.ts";
+import type { ToggleItem } from "../src/settings/panel.ts";
 import { DEFAULT_SETTINGS, cloneSettings } from "../src/settings/schema.ts";
 
 const PLAIN_THEME: ThemeLike = { fg: (_token, text) => text };
@@ -42,12 +43,12 @@ test("所有设置项都出现在面板里", () => {
   }
 });
 
-test("当前选中项带 › 标记且只有一个", () => {
+test("当前选中项带 > 标记且只有一个", () => {
   const lines = renderPanelLines(PLAIN_THEME, cloneSettings(DEFAULT_SETTINGS), 2, 60);
   const selectedItem = SETTINGS_ITEMS[2];
   assert.ok(selectedItem);
 
-  const marked = lines.filter((line) => line.includes("›"));
+  const marked = lines.filter((line) => line.includes(">"));
   assert.equal(marked.length, 1, "只应有一行被标记为选中");
   assert.ok(marked[0]?.includes(selectedItem.label));
 });
@@ -67,7 +68,9 @@ test("开关值反映配置状态", () => {
 test("设置项的 get/set 直接对应配置结构", () => {
   const settings = cloneSettings(DEFAULT_SETTINGS);
 
-  const item = SETTINGS_ITEMS.find((candidate) => candidate.id === "userFrame");
+  const item = SETTINGS_ITEMS.find(
+    (candidate): candidate is ToggleItem => candidate.id === "userFrame",
+  );
   assert.ok(item, "应存在 userFrame 项");
 
   assert.equal(item.get(settings), settings.messageFrame.userFrame);
@@ -75,6 +78,31 @@ test("设置项的 get/set 直接对应配置结构", () => {
   assert.equal(settings.messageFrame.userFrame, false);
   item.set(settings, true);
   assert.equal(settings.messageFrame.userFrame, true);
+});
+
+test("风格枚举项在面板中循环切换 minimal → boxed → minimal", () => {
+  const settings = cloneSettings(DEFAULT_SETTINGS);
+  const panel = new SettingsPanel(PLAIN_THEME, settings, {
+    onChange: () => {},
+    close: () => {},
+  });
+
+  // style 项位于清单第 2 位（index 1）：down 一次后按空格循环。
+  panel.handleInput("\x1b[B");
+  panel.handleInput(" ");
+  assert.equal(settings.style, "boxed", "第一次切换应变为 boxed");
+  panel.handleInput(" ");
+  assert.equal(settings.style, "minimal", "再切一次应回到 minimal");
+});
+
+test("风格枚举项的当前值显示在面板里", () => {
+  const settings = cloneSettings(DEFAULT_SETTINGS);
+  const text = renderPanelLines(PLAIN_THEME, settings, 1, 60).join("\n");
+  assert.ok(text.includes("极简（锚点）"), "minimal 应显示极简标签");
+
+  settings.style = "boxed";
+  const boxedText = renderPanelLines(PLAIN_THEME, settings, 1, 60).join("\n");
+  assert.ok(boxedText.includes("经典（外框）"), "boxed 应显示经典标签");
 });
 
 test("设置面板不包含任何 Patch 相关项（只暴露配置开关）", () => {

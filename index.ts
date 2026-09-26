@@ -21,10 +21,15 @@ import {
   isTuiSessionContext,
   type PiRuntimeCapabilities,
 } from "./src/core/pi-compat.ts";
+import {
+  installScrollIndicatorHider,
+  type ScrollIndicatorHandle,
+} from "./src/core/scroll-indicator.ts";
 import { ResourceStack, TuiOwnership } from "./src/core/session.ts";
 import { resolveTheme } from "./src/core/theme.ts";
 import { InputFrameRuntime, StreamSpeedTracker } from "./src/features/input-frame/index.ts";
 import { installMessageFrame, type MessageFrameHandle } from "./src/features/message-frame/index.ts";
+import { installStartupHeader, countMcpServers, type StartupHeaderHandle } from "./src/features/startup-header.ts";
 import { cloneSettings, isFeatureActive, type ZxdlSettings } from "./src/settings/schema.ts";
 import {
   readPersistedSettings,
@@ -52,6 +57,8 @@ export function registerZxdlExtension(pi: ExtensionAPI, deps: ZxdlRuntimeDeps = 
   let capabilities: PiRuntimeCapabilities | undefined;
   let currentCtx: unknown;
   let frameHandle: MessageFrameHandle | undefined;
+  let scrollIndicatorHandle: ScrollIndicatorHandle | undefined;
+  let headerHandle: StartupHeaderHandle | undefined;
 
   const getStatus = (): ZxdlStatus => ({
     settings: cloneSettings(settings),
@@ -71,9 +78,13 @@ export function registerZxdlExtension(pi: ExtensionAPI, deps: ZxdlRuntimeDeps = 
 
     if (wantsFrame && !frameHandle) {
       frameHandle = installMessageFrame(resolveTheme, () => ({
+        style: settings.style,
         assistantFrame: settings.messageFrame.assistantFrame,
         userFrame: settings.messageFrame.userFrame,
         thinkingFrame: settings.thinking.enabled,
+        assistantAnchor: settings.assistantAnchor,
+        bashFrame: settings.bashFrame,
+        diffHighlight: settings.diffHighlight,
       }));
       if (frameHandle) {
         resources.add(frameHandle);
@@ -102,6 +113,67 @@ export function registerZxdlExtension(pi: ExtensionAPI, deps: ZxdlRuntimeDeps = 
       statusBarIcons: settings.statusBar.icons,
       statusBarSegments: settings.statusBar.segments,
     });
+
+    // ③ 隐藏「↓ Jump to latest message」滚动提示（Pi 无官方开关，走 method-patch）。
+    const wantsHideIndicator = settings.enabled && settings.hideScrollToEnd;
+    if (wantsHideIndicator && !scrollIndicatorHandle) {
+      scrollIndicatorHandle = installScrollIndicatorHider();
+      console.debug?.(
+        scrollIndicatorHandle
+          ? "[pi-zxdl] 滚动提示已隐藏"
+          : "[pi-zxdl] scroll-indicator: Pi 内部结构不匹配，跳过隐藏（fail-closed）",
+      );
+    } else if (!wantsHideIndicator && scrollIndicatorHandle) {
+      scrollIndicatorHandle.dispose();
+      scrollIndicatorHandle = undefined;
+      console.debug?.("[pi-zxdl] 滚动提示已恢复（Pi 原生行为）");
+    }
+
+    // ④ 自定义启动画面（官方 ctx.ui.setHeader 同槽位替换；前置：Pi quietStartup 已开启）。
+    const wantsHeader = settings.enabled && settings.startup.enabled && currentCtx !== undefined;
+    if (wantsHeader && !headerHandle) {
+      // MCP 计数只在安装时读一次配置文件（同步毫秒级），缓存进闭包——render 每帧零磁盘开销。
+      const ctxCwd = (currentCtx as { cwd?: string } | undefined)?.cwd ?? process.cwd();
+      let mcpCount = 0;
+      try {
+        mcpCount = countMcpServers(ctxCwd);
+      } catch {
+        // MCP 配置不可读时按 0 展示，不影响其余计数。
+      }
+      headerHandle = installStartupHeader(currentCtx, {
+        theme: resolveTheme(),
+        isIdle: () => {
+          try {
+            return (currentCtx as { isIdle?: () => boolean } | undefined)?.isIdle?.() ?? true;
+          } catch {
+            return true;
+          }
+        },
+        getResourceCounts: () => {
+          try {
+            // skills 按 Pi 官方口径取自命令来源标记。
+            const commands = pi.getCommands();
+            return {
+              tools: pi.getAllTools().length,
+              commands: commands.filter((c) => c.source !== "skill").length,
+              skills: commands.filter((c) => c.source === "skill").length,
+              mcp: mcpCount,
+            };
+          } catch {
+            return { tools: 0, commands: 0, skills: 0, mcp: mcpCount };
+          }
+        },
+      });
+      console.debug?.(
+        headerHandle
+          ? "[pi-zxdl] 启动画面已接管（自定义 logo header）"
+          : "[pi-zxdl] startup-header: ctx.ui.setHeader 不可用，跳过（fail-closed）",
+      );
+    } else if (!wantsHeader && headerHandle) {
+      headerHandle.dispose();
+      headerHandle = undefined;
+      console.debug?.("[pi-zxdl] 启动画面已恢复（Pi 原生横幅）");
+    }
   };
 
   /** 保存配置：先落盘，再应用。写盘失败只记录，不阻断本次生效。 */
@@ -126,6 +198,8 @@ export function registerZxdlExtension(pi: ExtensionAPI, deps: ZxdlRuntimeDeps = 
     resources = new ResourceStack();
     currentCtx = ctx;
     frameHandle = undefined;
+    headerHandle = undefined;
+    scrollIndicatorHandle = undefined;
     speedTracker.reset();
     settings = readPersistedSettings();
     capabilities = inspectCapabilities();
@@ -162,6 +236,10 @@ export function registerZxdlExtension(pi: ExtensionAPI, deps: ZxdlRuntimeDeps = 
     if (!ownership.isOwner()) return;
     try {
       frameHandle = undefined;
+      headerHandle?.dispose();
+      headerHandle = undefined;
+      scrollIndicatorHandle?.dispose();
+      scrollIndicatorHandle = undefined;
       inputFrameRuntime.dispose();
       resources.dispose();
     } finally {

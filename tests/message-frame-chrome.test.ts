@@ -116,3 +116,46 @@ test("窄宽度下思考框同样回退，不产生破框", () => {
   assert.equal(lines.length, 1);
   assert.ok(!(lines[0] ?? "").includes("╭"));
 });
+
+// ---------------------------------------------------------------------------
+// 实机反馈：用户消息的框虚大（Pi 原生 Box 上下垫背景 pad 行）+ 框内双重底色
+// ---------------------------------------------------------------------------
+
+test("用户消息的首尾 pad 空行被裁剪，框紧贴文字", () => {
+  // 模拟 Pi 原生 Box 输出：上下各一行背景 pad 行（纯文本主题下表现为空行）。
+  const lines = renderMessageBox("user", ["", "学习我的这个项目", ""], 40, {
+    theme: ANSI_THEME,
+    stripBackground: true,
+  });
+
+  assert.equal(lines.length, 3, "顶框 + 1 行内容 + 底框，pad 行不应被框进去");
+  assert.ok(lines[1]?.includes("学习我的这个项目"));
+});
+
+test("stripBackground 剥掉用户消息的原生背景条，避免框里套条", () => {
+  const nativeBg = "\x1b[48;5;99m学习我的这个项目\x1b[0m";
+  const lines = renderMessageBox("user", [nativeBg], 40, {
+    theme: ANSI_THEME,
+    stripBackground: true,
+  });
+
+  assert.ok(!lines.some((line) => line.includes("48;5;99")), "框内不应残留原生背景参数");
+});
+
+test("不传 stripBackground 时其他类型保留原有着色（工具底色是 boxed 设计的一部分）", () => {
+  const lines = renderMessageBox("toolSuccess", ["\x1b[48;5;22moutput\x1b[0m"], 40, {
+    theme: ANSI_THEME,
+    toolName: "bash",
+  });
+
+  assert.ok(lines.some((line) => line.includes("48;5;22")), "未开启剥离时应保留背景");
+});
+
+test("中间的空行不受裁剪影响（用户刻意留白保留）", () => {
+  const lines = renderMessageBox("user", ["第一段", "", "第二段"], 40, {
+    theme: ANSI_THEME,
+    stripBackground: true,
+  });
+
+  assert.equal(lines.length, 5, "顶框 + 3 内容行（含中间空行）+ 底框");
+});

@@ -2,9 +2,9 @@
 
 Pi coding agent 的 TUI 增强扩展。三件事：
 
-1. **消息对话框外框** — 让助手回复、用户消息、工具调用、Bash 执行在视觉上清晰分隔
-2. **思考过程线框** — 思考内容带独立外框（折叠态紧凑三行，展开态完整内容），**静态无动画**
-3. **输入框线框** — 底部输入框带线框（顶边可选显示 thinking 与上下文）
+1. **对话流呈现** — 默认**极简锚点式**（零边框）：用户 `›`、思考 `◆ Thinking`、工具 `✓/× 名字 · 摘要`、摘要类 `·`，细节行用 muted 色 `│` 引导；可在设置面板切回**经典外框**（boxed）
+2. **思考过程** — 思考块用独立锚点呈现，**静态无动画**（折叠态一行锚点，展开态细节进引导块）
+3. **输入框线框** — 底部输入框带线框（顶边可选显示 thinking 与上下文），**全 UI 唯一的常态框**
 4. **底部状态栏** — 输入框下方一行：模型 / 目录 / 分支 / 上下文 / 本会话 token / 速度
 
 > 名字取自「扎西德勒」（Tashi Delek）。
@@ -44,6 +44,15 @@ pi install git:https://github.com/kelongyan/Pi-Plugins
 ```
 
 设置面板的改动**即时生效并自动持久化**，不需要重启。
+
+## 对话流风格
+
+设置面板第一项「对话流风格」可在两种呈现间切换：
+
+- **极简（锚点，默认）** — 对话流零边框，每条消息一行可扫读的符号锚点，细节行用 muted 色 `│` 引导。设计参考 MiniMax Code 的 TUI 语言。
+- **经典（外框）** — v0.1.0 的完整外框呈现，作为兼容模式保留。
+
+配套开关：`assistant 加 ● 锚点`（极简下 assistant 正文默认裸排）、`bash 保留外框`（长输出需要视觉隔离时开）。**输入框线框、底部状态栏与用户消息的外框不受风格影响**，均为独立保留项。
 
 ## 自带 Eva 主题
 
@@ -101,10 +110,10 @@ src/utils/
   width.ts                  宽度安全工具（visibleWidth / padToWidth）
   image-escape.ts           Kitty / iTerm 图片协议行识别
 src/features/
-  message-frame/            P1：消息外框（唯一使用 patch 的功能）
-    chrome.ts                 纯绘制：边框拼装、前景状态跟踪、宽度降级
-    styles.ts                 kind → 主题 token 映射与标签
-    patch.ts                  组件 render 包装（8 类消息组件）
+  message-frame/            消息呈现（唯一使用 patch 的功能）
+    chrome.ts                 纯绘制：锚点行 + gutter（minimal）与经典外框（boxed）
+    styles.ts                 kind → 主题 token 映射与标签；SYMBOLS 符号表（minimal）
+    patch.ts                  组件 render 包装（8 类消息组件），按 style 分流
   input-frame/              P3/P6：输入框线框 + 底部状态栏（无 patch，全走公开 API）
     frame.ts                  线框绘制 + 标签降级（保护 CURSOR_MARKER）
     status.ts                 线框顶边数据：thinking / 上下文
@@ -116,6 +125,21 @@ src/features/
 ```
 
 ### P1 覆盖的消息类型
+
+两种风格共用同一套类型判定与状态推导（toolName / isPartial / result 等）。
+
+**极简（minimal，默认）**的锚点符号：
+
+| 类型 | 锚点形态 |
+|---|---|
+| 用户消息 | **始终用经典外框**（不随风格切换，与输入框线框呼应） |
+| 助手回复 | 正文裸排（可选 `assistantAnchor` 加一行 `●`） |
+| 思考过程 | `◆ Thinking · 首行摘要`，其余行进 `│` 引导块 |
+| 工具调用 | `✓/×/● 工具名 · 摘要`，细节进 `│` 引导块 |
+| Bash 执行 | 同工具（`bashFrame` 开启时保留经典单框） |
+| 自定义 / 技能 / 压缩 / 分支 | `· 内容`（muted 弱锚点） |
+
+**经典（boxed）**的外框标签：
 
 | 类型 | 标签 | 边框 token |
 |---|---|---|

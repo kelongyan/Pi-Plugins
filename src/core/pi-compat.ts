@@ -15,6 +15,8 @@ import {
   SkillInvocationMessageComponent,
   ToolExecutionComponent,
   UserMessageComponent,
+  getLanguageFromPath,
+  highlightCode,
 } from "@earendil-works/pi-coding-agent";
 
 /** 需要包装 render 的消息组件清单。 */
@@ -28,6 +30,26 @@ export const PI_MESSAGE_COMPONENTS = {
   ToolExecutionComponent,
   BashExecutionComponent,
 } as const;
+
+// —— 语法高亮 API（Pi 官方导出，read/write 渲染器同款）——
+// ⚠️ 必须用 named import，不能用 `import * as ns` 探测：Pi 用 jiti 加载扩展，
+// namespace 对象在 jiti 的 CJS 互操作下属性会落在 .default 上，`ns.highlightCode`
+// 探测恒为 false，导致整段高亮静默跳过（v0.3.0 实机踩坑）。named import 与组件
+// 导入同路径（实机验证可用）；老版本缺失时模块加载期报错——0.84+/0.87+ 均有导出。
+
+/** 对代码文本做语法高亮，返回按行拆分的结果（与 Pi highlightCode 同签名）。调用方需 try/catch。 */
+export function piHighlightCode(code: string, lang: string): string[] {
+  return highlightCode(code, lang);
+}
+
+/** 文件路径 → 高亮语言标识（Pi 内置 75 种扩展名映射；认不出返回 undefined）。 */
+export function piLanguageFromPath(path: string): string | undefined {
+  return getLanguageFromPath(path);
+}
+
+export function piHighlightSupported(): boolean {
+  return typeof highlightCode === "function" && typeof getLanguageFromPath === "function";
+}
 
 export type PiComponentMap = Record<string, any>;
 
