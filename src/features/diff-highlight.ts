@@ -12,24 +12,6 @@
 import { piHighlightCode, piHighlightSupported, piLanguageFromPath } from "../core/pi-compat.ts";
 import type { ThemeLike } from "../core/theme.ts";
 import { stripAnsi } from "../utils/width.ts";
-import { appendFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
-
-/**
- * 临时诊断日志（定位实机高亮失效用）：写 ~/.pi/agent/pi-zxdl-diff.log。
- * 定位完成后整体移除。
- */
-export function debugDiffLog(...args: unknown[]): void {
-  try {
-    appendFileSync(
-      join(homedir(), ".pi", "agent", "pi-zxdl-diff.log"),
-      `${new Date().toISOString()} ${args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" ")}\n`,
-    );
-  } catch {
-    // 日志失败不影响渲染。
-  }
-}
 
 /**
  * diff 行格式（core/tools/edit-diff.js 生成）：`+12 内容` / `-12 内容`，
@@ -49,12 +31,10 @@ function cachedHighlight(code: string, lang: string, highlight: HighlightFn): st
   if (hit !== undefined) return hit;
   try {
     const value = highlight(code, lang).join("\n");
-    debugDiffLog("[cachedHighlight] ok", `ansi=${/\x1b\[/.test(value)}`, `code=${JSON.stringify(code.slice(0, 40))}`);
     if (highlightCache.size >= CACHE_LIMIT) highlightCache.clear();
     highlightCache.set(key, value);
     return value;
-  } catch (error) {
-    debugDiffLog("[cachedHighlight] threw:", error instanceof Error ? error.message : String(error));
+  } catch {
     return undefined;
   }
 }
@@ -117,25 +97,10 @@ export function transformEditDiffLines(
   theme: ThemeLike,
   highlight: HighlightFn = defaultHighlight,
 ): string[] {
-  if (toolName !== "edit" || lines.length === 0) {
-    debugDiffLog("[transform] skip", `toolName=${toolName}`, `lines=${lines.length}`);
-    return lines;
-  }
-  if (!piHighlightSupported()) {
-    debugDiffLog("[transform] skip: highlight API unsupported");
-    return lines;
-  }
+  if (toolName !== "edit" || lines.length === 0) return lines;
+  if (!piHighlightSupported()) return lines;
   const lang = diffLanguageFromArgs(instance);
-  if (!lang) {
-    const args = (instance as { args?: { path?: unknown } } | undefined)?.args;
-    debugDiffLog("[transform] skip: no lang", `path=${JSON.stringify(args?.path)}`);
-    return lines;
-  }
-  const matched = lines.filter((line) => {
-    const plain = stripAnsi(line);
-    return ADDED_LINE_RE.test(plain) || REMOVED_LINE_RE.test(plain);
-  }).length;
-  debugDiffLog("[transform] run", `lang=${lang}`, `lines=${lines.length}`, `matched=${matched}`, `sample=${JSON.stringify(stripAnsi(lines[0] ?? "").slice(0, 40))}`);
+  if (!lang) return lines;
   const out = lines.map((line) => renderEditDiffLine(line, lang, theme, highlight));
   // 没有任何一行被改写时零拷贝返回原数组（透传语义，避免每帧无谓分配）。
   return out.every((value, index) => value === lines[index]) ? lines : out;
